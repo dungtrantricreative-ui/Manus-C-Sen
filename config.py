@@ -7,7 +7,7 @@ load_dotenv()
 class Settings(BaseSettings):
     # LLM Settings
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    MODEL_NAME: str = "gemini-2.0-flash-exp"
+    MODEL_NAME: str = "gemini-2.5-flash"
     BASE_URL: str = "https://generativelanguage.googleapis.com/v1beta/openai/"
     
     # Tool Settings
@@ -19,3 +19,4 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 settings = Settings()
+
