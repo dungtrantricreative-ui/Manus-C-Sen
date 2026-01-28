@@ -1,26 +1,33 @@
 from tavily import TavilyClient
 from config import settings
+from agent_core import BaseTool
 from loguru import logger
 
-def search_tool(query: str) -> str:
-    """
-    Search the web for information using Tavily API.
-    Returns a text summary of the search results.
-    """
-    if not settings.TAVILY_API_KEY:
-        return "Error: TAVILY_API_KEY not found in environment variables."
-    
-    try:
-        client = TavilyClient(api_key=settings.TAVILY_API_KEY)
-        logger.info(f"Searching for: {query}")
-        # Search for context and return as a single string
-        response = client.search(query=query, search_depth="advanced")
+class SearchTool(BaseTool):
+    name: str = "search_tool"
+    description: str = "Search the web for real-time information and news."
+    parameters: dict = {
+        "type": "object",
+        "properties": {
+            "query": {"type": "string", "description": "The search query."}
+        },
+        "required": ["query"]
+    }
+
+    async def execute(self, query: str) -> str:
+        if not settings.TAVILY_API_KEY:
+            return "Error: TAVILY_API_KEY not found."
         
-        results = []
-        for result in response.get('results', []):
-            results.append(f"Title: {result.get('title')}\nURL: {result.get('url')}\nContent: {result.get('content')}\n")
-        
-        return "\n---\n".join(results) if results else "No results found."
-    except Exception as e:
-        logger.error(f"Search error: {e}")
-        return f"Error during search: {str(e)}"
+        try:
+            # Tavily client is synchronous, but we wrap it for the agent
+            client = TavilyClient(api_key=settings.TAVILY_API_KEY)
+            response = client.search(query=query, search_depth="advanced")
+            
+            results = []
+            for result in response.get('results', []):
+                results.append(f"Title: {result.get('title')}\nURL: {result.get('url')}\nContent: {result.get('content')}\n")
+            
+            return "\n---\n".join(results) if results else "No results found."
+        except Exception as e:
+            logger.error(f"Search error: {e}")
+            return f"Error during search: {str(e)}"
