@@ -1,11 +1,25 @@
 [llm]
 gemini_api_key = "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"
+# Using Groq Llama for high-speed scout performance
 model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
 base_url = "https://api.groq.com/openai/v1"
 
 [tools]
 tavily_api_key = "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"
+enabled = ["search", "memory", "file_ops", "calculator", "scraper", "python_repl"]
 
 [agent]
 max_steps = 20
 name = "Manus-Củ-Sen"
+
+[cache]
+enabled = true
+ttl_seconds = 300
+
+[memory]
+file_path = "memory.json"
+max_age_days = 7
+
+[monitoring]
+track_usage = true
+usage_file = "usage.json"

@@ -18,12 +18,28 @@ python3 -m venv venv && source venv/bin/activate && pip install -r requirements.
 Edit the `config.toml` file in the root directory:
 ```toml
 [llm]
-gemini_api_key = "your_gemini_api_key"
-model_name = "gemini-2.0-flash-exp"
+gemini_api_key = "your_key"
+model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
+base_url = "https://api.groq.com/openai/v1"
 
 [tools]
-tavily_api_key = "your_tavily_api_key"
+enabled = ["search", "memory", "file_ops", "calculator", "scraper"]
+
+[cache]
+enabled = true
 ```
+
+## 🛠️ Advanced Tools
+- **File Operations**: Read/Write/List files in your workspace.
+- **Persistent Memory**: Save and recall info across sessions (stored in `memory.json`).
+- **Calculator**: Securely solve mathematical expressions.
+- **Web Scraper**: Extract full text content from any URL.
+
+## 🚀 Key Features
+- **Streaming UI**: See response chunks and agent status real-time.
+- **Intelligent Caching**: Avoid redundant tool calls for the same query.
+- **Self-Correction**: RL-inspired reflection loop for high accuracy.
+- **Usage Monitoring**: Track request counts and estimated costs in `usage.json`.
 
 ## 🎯 Run
 ```bash

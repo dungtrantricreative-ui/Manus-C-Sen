@@ -3,3 +3,6 @@ pydantic
 tavily-python
 loguru
 toml
+tenacity
+httpx
+beautifulsoup4

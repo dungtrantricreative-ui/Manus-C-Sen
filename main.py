@@ -3,18 +3,37 @@ import sys
 from loguru import logger
 from agent_core import ManusCompetition
 from tools.search import SearchTool
+from tools.file_ops import FileOpsTool
+from tools.memory import MemoryTool
+from tools.calculator import CalculatorTool
+from tools.scraper import ScraperTool
+from tools.python_repl import PythonREPLTool
+from tools.python_repl import PythonREPLTool
 from config import settings
 
 async def main():
     if not settings.GEMINI_API_KEY:
-        logger.error("GEMINI_API_KEY is not set.")
+        logger.error("GEMINI_API_KEY is not set in config.toml.")
         return
         
-    # Initialize the agent with robust original logic
     agent = ManusCompetition()
-    agent.add_tool(SearchTool())
     
-    print("\n🚀 Manus-Competition (Robust Edition) Initialized")
+    # Registry tools based on config
+    tool_map = {
+        "search": SearchTool(),
+        "file_ops": FileOpsTool(),
+        "memory": MemoryTool(),
+        "calculator": CalculatorTool(),
+        "scraper": ScraperTool(),
+        "python_repl": PythonREPLTool()
+    }
+    
+    for tool_name in settings.ENABLED_TOOLS:
+        if tool_name in tool_map:
+            agent.add_tool(tool_map[tool_name])
+            logger.info(f"Tool enabled: {tool_name}")
+    
+    print(f"\n🚀 {settings.name} Advanced Initialized")
     print("Type 'exit' to quit.\n")
     
     while True:
@@ -25,11 +44,16 @@ async def main():
             if not user_input:
                 continue
             
-            # Reset agent state for new query if needed, or keep context
-            # Original Manus usually creates a new instance or clears memory
-            # For competition, we let it keep context in a session
-            result = await agent.run(user_input)
-            print(f"\nManus: {result}\n")
+            # Start the logic
+            async for chunk in agent.run(user_input):
+                if chunk["type"] == "status":
+                    # Print status on its own line with a subtle color
+                    print(f"\n\033[93m>> {chunk['content']}\033[0m")
+                    print(f"\033[34m{settings.name}:\033[0m ", end="", flush=True)
+                elif chunk["type"] == "content":
+                    print(chunk["content"], end="", flush=True)
+            
+            print("\n") # End of response
             
         except KeyboardInterrupt:
             break
@@ -38,5 +62,6 @@ async def main():
 
 if __name__ == "__main__":
     logger.remove()
-    logger.add(sys.stderr, format="<blue>{time:HH:mm:ss}</blue> | <level>{level}</level> | {message}")
+    # Set to INFO level to avoid confusing the user with DEBUG cache logs
+    logger.add(sys.stderr, level="INFO", format="<blue>{time:HH:mm:ss}</blue> | <level>{level}</level> | {message}")
     asyncio.run(main())
