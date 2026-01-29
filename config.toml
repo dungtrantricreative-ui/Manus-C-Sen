@@ -1,8 +1,8 @@
 [llm]
-gemini_api_key = "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"
+gemini_api_key = "74a9bc78-8f70-495d-ac96-22b3589837b4"
 # Using Groq Llama for high-speed scout performance
-model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
-base_url = "https://api.groq.com/openai/v1"
+model_name = "gpt-oss-120b"
+base_url = "https://api.sambanova.ai/v1"
 
 [tools]
 tavily_api_key = "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"
