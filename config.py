@@ -21,7 +21,10 @@ class Settings(BaseModel):
 
     @classmethod
     def load(cls):
-        config_path = "config.toml"
+        # Get the directory where config.py is located
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(base_dir, "config.toml")
+        
         if os.path.exists(config_path):
             with open(config_path, "r", encoding="utf-8") as f:
                 config_data = toml.load(f)
