@@ -1,6 +1,5 @@
 openai
 pydantic
-pydantic-settings
-python-dotenv
 tavily-python
 loguru
+toml

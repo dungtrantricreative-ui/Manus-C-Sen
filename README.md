@@ -15,10 +15,14 @@ python3 -m venv venv && source venv/bin/activate && pip install -r requirements.
 ```
 
 ## ⚙️ Configuration
-Create a `.env` file in the root directory:
-```env
-GEMINI_API_KEY=your_gemini_api_key
-TAVILY_API_KEY=your_tavily_api_key
+Edit the `config.toml` file in the root directory:
+```toml
+[llm]
+gemini_api_key = "your_gemini_api_key"
+model_name = "gemini-2.0-flash-exp"
+
+[tools]
+tavily_api_key = "your_tavily_api_key"
 ```
 
 ## 🎯 Run

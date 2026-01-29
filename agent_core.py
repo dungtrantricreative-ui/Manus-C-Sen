@@ -53,6 +53,21 @@ class ToolCollection:
         except Exception as e:
             return f"Error executing {name}: {str(e)}"
 
+# --- Terminate Tool ---
+class Terminate(BaseTool):
+    name: str = "terminate"
+    description: str = "Terminate the current task and provide the final answer."
+    parameters: dict = {
+        "type": "object",
+        "properties": {
+            "output": {"type": "string", "description": "The final answer or summary."}
+        },
+        "required": ["output"]
+    }
+
+    async def execute(self, output: str) -> str:
+        return output
+
 # --- Minimal LLM Client ---
 class LLM:
     def __init__(self):
@@ -84,6 +99,9 @@ class BaseAgent(BaseModel, ABC):
         arbitrary_types_allowed = True
 
     async def run(self, request: Optional[str] = None) -> str:
+        self.current_step = 0  # Reset steps for new request
+        self.state = AgentState.IDLE # Reset state to idle to allow rerun
+        
         if request:
             self.memory.add_message(Message.user_message(request))
         
@@ -123,7 +141,7 @@ class ReActAgent(BaseAgent):
             await self.act()
 
 class ToolCallAgent(ReActAgent):
-    available_tools: ToolCollection = Field(default_factory=lambda: ToolCollection())
+    available_tools: ToolCollection = Field(default_factory=lambda: ToolCollection(Terminate()))
     tool_calls: List[ToolCall] = Field(default_factory=list)
 
     async def think(self) -> bool:
@@ -139,7 +157,12 @@ class ToolCallAgent(ReActAgent):
         assistant_msg = Message.from_tool_calls(self.tool_calls, content=content) if self.tool_calls else Message.assistant_message(content)
         self.memory.add_message(assistant_msg)
         
-        return bool(self.tool_calls)
+        # If no tool calls, it means the model is giving a final answer
+        if not self.tool_calls:
+            self.state = AgentState.FINISHED
+            return False
+            
+        return True
 
     async def act(self) -> str:
         for call in self.tool_calls:
@@ -149,18 +172,75 @@ class ToolCallAgent(ReActAgent):
             
             result = await self.available_tools.execute(name, args)
             self.memory.add_message(Message.tool_message(result, name, call.id))
+            
+            # If terminate tool is called, finish execution
+            if name == "terminate":
+                self.state = AgentState.FINISHED
         return "Action completed."
 
-# --- Optimization for Gemini 2.x Flash ---
+# --- Advanced Multi-Agent Orchestrator (RL-Inspired) ---
 class ManusCompetition(ToolCallAgent):
-    name: str = "Manus-Competition"
-    system_prompt: str = """Act as Manus-Competition. Optimized for Gemini 2.0 Flash.
-REASONING: Direct & logical. 
-STRICT FORMAT: 
-1. THINK: Logic step.
-2. ACT: Call tool.
-3. FINISH: Only when goal met.
-No conversational filler. Max efficiency."""
+    name: str = "Manus-Củ-Sen-Orchestrator"
+    
+    # System prompt optimized for Orchestration + Self-Correction (RL)
+    system_prompt: str = """Act as Manus-Competition Orchestrator. 
+You use a Multi-Agent loop with Self-Correction (Reinforcement Learning principles).
+
+PHASES:
+1. PLAN: Break the user request into logical sub-tasks.
+2. EXECUTE: Use tools to solve sub-tasks.
+3. REFLECT: Evaluate if the result meets the 'Reward' criteria (accuracy, completeness).
+4. CORRECT: If reflection shows gaps, re-plan and repeat.
+
+STRICT FORMAT:
+- THINK: Orchestration reasoning.
+- ACT: Tool call.
+- REFLECT: Critical assessment of the observation.
+- FINISH: Use 'terminate' only after successful reflection.
+
+Efficiency: Be direct. No filler. Optimized for Gemini 2.0 Flash."""
+
+    async def step(self):
+        """Enhanced step with Reflection (CRITIC) loop"""
+        # 1. THINK & ACT (Executor Phase)
+        if await self.think():
+            await self.act()
+            
+            # 2. REFLECT (Critic Phase)
+            await self.reflect()
+
+    async def reflect(self) -> bool:
+        """
+        Self-Correction Phase: Model evaluates its own last action results.
+        Mimics a reward signal in RL.
+        """
+        if self.state == AgentState.FINISHED:
+            return True
+            
+        logger.info(f"[{self.name}] Reflection Phase (Self-Critic)...")
+        
+        reflection_prompt = "REFLECT: Evaluate the last tool output. Is it sufficient to answer the user? If not, what is missing? State 'CONTINUE' or 'DONE'."
+        
+        messages = [{"role": "system", "content": self.system_prompt}] + self.memory.to_dict_list() + [{"role": "user", "content": reflection_prompt}]
+        
+        # Use a quick call to evaluate
+        response = await self.llm.client.chat.completions.create(
+            model=settings.MODEL_NAME,
+            messages=messages,
+            max_tokens=100
+        )
+        
+        analysis = response.choices[0].message.content
+        logger.info(f"Reflection Analysis: {analysis}")
+        
+        if "DONE" in analysis.upper():
+            # If the critic says it's done, we don't force a finish here, 
+            # let the next think() cycle decide or prompt the model to terminate.
+            self.memory.add_message(Message.system_message("Reflection: Task goal met partially or fully. Proceed to finish if complete."))
+            return True
+        else:
+            self.memory.add_message(Message.system_message(f"Reflection Correction: {analysis}. Please refine your approach."))
+            return False
 
     def add_tool(self, tool: BaseTool):
         self.available_tools.tool_map[tool.name] = tool

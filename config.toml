@@ -1,0 +1,11 @@
+[llm]
+gemini_api_key = "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"
+model_name = "llama-3.3-70b-versatile"
+base_url = "https://api.groq.com/openai/v1"
+
+[tools]
+tavily_api_key = "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"
+
+[agent]
+max_steps = 20
+name = "Manus-Củ-Sen"
