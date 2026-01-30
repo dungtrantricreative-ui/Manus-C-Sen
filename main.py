@@ -8,7 +8,8 @@ from tools.memory import MemoryTool
 from tools.calculator import CalculatorTool
 from tools.scraper import ScraperTool
 from tools.python_repl import PythonREPLTool
-from tools.python_repl import PythonREPLTool
+from tools.browser import BrowserTool
+from tools.ask_human import AskHumanTool
 from config import settings
 
 async def main():
@@ -25,7 +26,9 @@ async def main():
         "memory": MemoryTool(),
         "calculator": CalculatorTool(),
         "scraper": ScraperTool(),
-        "python_repl": PythonREPLTool()
+        "python_repl": PythonREPLTool(),
+        "browser": BrowserTool(),
+        "ask_human": AskHumanTool()
     }
     
     for tool_name in settings.ENABLED_TOOLS:
@@ -59,6 +62,11 @@ async def main():
             break
         except Exception as e:
             logger.error(f"Error: {e}")
+        finally:
+            # Cleanup all tools that have a cleanup method
+            for tool in tool_map.values():
+                if hasattr(tool, "cleanup") and asyncio.iscoroutinefunction(tool.cleanup):
+                    await tool.cleanup()
 
 if __name__ == "__main__":
     logger.remove()

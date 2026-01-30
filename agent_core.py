@@ -81,35 +81,73 @@ class Terminate(BaseTool):
     async def execute(self, output: str) -> str:
         return output
 
-# --- LLM Client with Streaming & Retries ---
+# --- LLM Client with Streaming & Failover ---
 class LLM:
     def __init__(self):
-        self.client = AsyncOpenAI(
+        # Primary Client (SambaNova/OpenAI-compatible)
+        self.primary_client = AsyncOpenAI(
             api_key=settings.GEMINI_API_KEY,
             base_url=settings.BASE_URL
         )
+        # Backup Client (Groq)
+        self.groq_client = None
+        if settings.GROQ_API_KEY:
+            self.groq_client = AsyncOpenAI(
+                api_key=settings.GROQ_API_KEY,
+                base_url=settings.GROQ_BASE_URL
+            )
 
-    @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=4, max=10))
-    async def ask_tool_stream(self, messages: List[dict], tools: List[dict]) -> AsyncGenerator[Dict[str, Any], None]:
-        response = await self.client.chat.completions.create(
-            model=settings.MODEL_NAME,
-            messages=messages,
-            tools=tools,
-            tool_choice="auto",
-            stream=True
-        )
-        async for chunk in response:
-            yield chunk
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2, min=5, max=15))
+    async def ask_tool_stream(self, messages: List[dict], tools: List[dict], model: Optional[str] = None) -> AsyncGenerator[Dict[str, Any], None]:
+        try:
+            response = await self.primary_client.chat.completions.create(
+                model=model or settings.MODEL_NAME,
+                messages=messages,
+                tools=tools,
+                tool_choice="auto",
+                stream=True
+            )
+            async for chunk in response:
+                yield chunk
+        except Exception as e:
+            if self.groq_client and ("429" in str(e) or "rate limit" in str(e).lower() or "timeout" in str(e).lower()):
+                logger.warning(f"Primary LLM failed: {e}. Falling back to Groq...")
+                response = await self.groq_client.chat.completions.create(
+                    model=settings.GROQ_MODEL_NAME,
+                    messages=messages,
+                    tools=tools,
+                    tool_choice="auto",
+                    stream=True
+                )
+                async for chunk in response:
+                    yield chunk
+            else:
+                raise e
 
-    async def quick_ask(self, messages: List[dict], max_tokens: int = 200) -> str:
-        """For non-tool, quick reflection calls"""
-        response = await self.client.chat.completions.create(
-            model=settings.MODEL_NAME,
-            messages=messages,
-            max_tokens=max_tokens,
-            stream=False
-        )
-        return response.choices[0].message.content or ""
+    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2, min=5, max=15))
+    async def quick_ask(self, messages: List[dict], max_tokens: int = 500, model: Optional[str] = None) -> str:
+        """For non-tool, quick reflection or specialized calls with failover"""
+        try:
+            response = await self.primary_client.chat.completions.create(
+                model=model or settings.MODEL_NAME,
+                messages=messages,
+                max_tokens=max_tokens,
+                stream=False
+            )
+            return response.choices[0].message.content or ""
+        except Exception as e:
+            if self.groq_client and ("429" in str(e) or "rate limit" in str(e).lower() or "timeout" in str(e).lower()):
+                logger.warning(f"Primary quick_ask failed: {e}. Falling back to Groq...")
+                # Groq fallback uses Scout (Llama 4) for both general and vision logic (Scout supports vision context if prompt is right)
+                response = await self.groq_client.chat.completions.create(
+                    model=settings.GROQ_MODEL_NAME,
+                    messages=messages,
+                    max_tokens=max_tokens,
+                    stream=False
+                )
+                return response.choices[0].message.content or ""
+            else:
+                raise e
 
 # --- Optimized Agent Core (The Manus-Củ-Sen Engine) ---
 class BaseAgent(BaseModel, ABC):
@@ -243,7 +281,7 @@ class ToolCallAgent(BaseAgent):
 
         yield {"type": "status", "content": "🔧 Using tool: verify (Critic)"}
         
-        critic_prompt = "CRITIC: Evaluate the last tool output. Is it sufficient to fulfill the user request or the current sub-task? If not, what is missing? Answer concisely. State 'PROCEED' if okay or provide 'FEEDBACK' for correction."
+        critic_prompt = "CRITIC: Analyze the tool output. Is it enough? Answer ONLY with 'PROCEED' or a short 'FEEDBACK: [what is missing]'. DO NOT output code, JSON, or tool calls."
         
         messages = [{"role": "system", "content": self.system_prompt}] + self.memory.to_dict_list() + [{"role": "user", "content": critic_prompt}]
         
@@ -251,8 +289,8 @@ class ToolCallAgent(BaseAgent):
         
         if "PROCEED" not in analysis.upper():
             logger.info(f"Critic Feedback: {analysis}")
-            self.memory.add_message(Message.system_message(f"Critic Feedback: {analysis}. Please adapt your strategy."))
-            yield {"type": "content", "content": f"\n\n> [!NOTE]\n> **Critic Feedback**: {analysis}\n"}
+            self.memory.add_message(Message.system_message(f"Critic Feedback: {analysis}"))
+            yield {"type": "content", "content": f"\n\n> [!TIP]\n> **Critic Feedback**: {analysis}\n"}
         else:
             # Silent proceed or subtle indicator
             pass
@@ -262,19 +300,22 @@ class ManusCompetition(ToolCallAgent):
     system_prompt: str = """You are Manus-Củ-Sen Advanced, a Multi-Agent Orchestrator.
 You mimic the original Manus core algorithm using a Planning-Execution-Critic loop.
 
-VIRTUAL ROLES:
-1. MANAGER/PLANNER: Break the goal into logical steps. Think inside <thinking> tags.
-2. EXECUTOR: Use the available tools strictly based on the plan.
-3. CRITIC/VERIFIER: You will automatically review tool outputs after each step to ensure 'Reward' (accuracy/completeness).
+CAPABILITIES:
+- PERSISTENT MEMORY: Use 'memory_tool' (save/recall).
+- BROWSER: Use 'browser' for web tasks. action='step' is best.
+- ASK HUMAN: Use 'ask_human' if you are stuck or need permission.
+- FILE OPS: Use 'file_ops' - MANDATORY: If user asks for a 'report', 'file', or 'doc', you MUST use file_ops to write it to a .md or .txt file.
+
+STRICT PROTOCOL:
+1. MANAGER: Plan steps. Think inside <thinking> tags.
+2. EXECUTOR: Use tools. If asked for a report, WRITE A FILE first, then inform the user.
+3. CRITIC: Review output quality.
 
 COMMANDS:
-- memory_tool: Save/Recall persistent data.
-- search_tool / scraper: Gather web tri thức.
-- calculator: High-precision math.
-- file_ops: Workspace management.
-- terminate: Use ONLY when the Critic confirms the goal is 100% met.
-
-Logic: Be autonomous, self-correcting, and highly efficient."""
-
+- browser: action='go_to_url', action='step' (vision), action='extract'.
+- file_ops: action='write', filename='report.md', content='...'.
+- search_tool / scraper: Quick info.
+- terminate: End when goal met.
+"""
     def add_tool(self, tool: BaseTool):
         self.available_tools.tool_map[tool.name] = tool
