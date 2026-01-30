@@ -8,6 +8,8 @@ from agent_core import BaseTool, LLM
 from config import settings
 from loguru import logger
 import markdownify
+from event_bus import EventBus
+
 
 class BrowserTool(BaseTool):
     name: str = "browser"
@@ -21,7 +23,7 @@ class BrowserTool(BaseTool):
         "properties": {
             "action": {
                 "type": "string", 
-                "enum": ["go_to_url", "click", "type", "scroll", "extract", "refresh", "back", "close"],
+                "enum": ["go_to_url", "step", "click", "type", "scroll", "extract", "refresh", "back", "close"],
                 "description": "The action to perform."
             },
             "url": {"type": "string", "description": "The URL to navigate to."},
@@ -66,7 +68,9 @@ class BrowserTool(BaseTool):
                 if not url: return "Error: URL missing"
                 if not url.startswith("http"): url = "https://" + url
                 await self._page.goto(url, wait_until="networkidle", timeout=30000)
+                await EventBus.publish("browser_view", await self.get_screenshot_base64())
                 return f"Navigated to {url}. Title: {await self._page.title()}"
+
 
             if action == "step":
                 if not text: return "Error: Goal text required for 'step' action."
@@ -105,17 +109,22 @@ class BrowserTool(BaseTool):
                 
                 if mv_action == "click":
                     await self._page.click(mv_selector, timeout=10000)
+                    await EventBus.publish("browser_view", await self.get_screenshot_base64())
                     return f"Maverick Action: Clicked {mv_selector}. Reason: {decision.get('reason')}"
                 elif mv_action == "type":
                     await self._page.fill(mv_selector, mv_text, timeout=10000)
+                    await EventBus.publish("browser_view", await self.get_screenshot_base64())
                     return f"Maverick Action: Typed into {mv_selector}. Reason: {decision.get('reason')}"
                 elif mv_action == "scroll":
                     await self._page.evaluate("window.scrollBy(0, 600)")
+                    await EventBus.publish("browser_view", await self.get_screenshot_base64())
                     return "Maverick Action: Scrolled down."
                 elif mv_action == "done":
                     return f"Maverick reports goal completed: {decision.get('reason')}"
                 
+                await EventBus.publish("browser_view", await self.get_screenshot_base64())
                 return f"Maverick decided unknown action: {mv_action}"
+
 
             if action == "close":
                 await self._browser.close()
@@ -144,29 +153,57 @@ class BrowserTool(BaseTool):
                 return f"URL: {self._page.url}\nCONTENT:\n{md[:10000]}"
 
             # Manual override interactions (click, type)
+            # Manual override interactions (click, type, or by index)
             if action == "click":
-                if not selector: return "Error: Selector or text required."
+                if index is not None:
+                    # Click by index
+                    await self._page.evaluate(f"""
+                        () => {{
+                            const el = Array.from(document.querySelectorAll('button, a, input, select, textarea, [role="button"]'))[{index}];
+                            if (el) el.click();
+                        }}
+                    """)
+                    await EventBus.publish("browser_view", await self.get_screenshot_base64())
+                    return f"Clicked element at index {index}."
+                
+                if not selector: return "Error: Selector, text or index required."
                 try:
                     await self._page.click(selector, timeout=10000)
                 except:
-                    # Fallback to search by text
                     try:
                         await self._page.get_by_text(selector).first.click(timeout=5000)
                     except:
-                        # Fallback to role search
                         await self._page.get_by_role("button", name=selector).first.click(timeout=5000)
+                await EventBus.publish("browser_view", await self.get_screenshot_base64())
                 return f"Clicked '{selector}'."
 
             if action == "type":
-                if not selector or not text: return "Error: Selector and text required."
+                if not text: return "Error: Text required for typing."
+                if index is not None:
+                    # Type by index
+                    await self._page.evaluate(f"""
+                        () => {{
+                            const el = Array.from(document.querySelectorAll('button, a, input, select, textarea, [role="button"]'))[{index}];
+                            if (el) {{
+                                el.focus();
+                                el.value = '{text}';
+                                el.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                                el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                            }}
+                        }}
+                    """)
+                    await EventBus.publish("browser_view", await self.get_screenshot_base64())
+                    return f"Typed '{text}' into element at index {index}."
+
+                if not selector: return "Error: Selector or index required."
                 try:
                     await self._page.fill(selector, text, timeout=10000)
                 except:
                     try:
-                        # Google uses 'q' name for textarea or input
                         await self._page.locator(f'input[name="{selector}"], textarea[name="{selector}"]').first.fill(text, timeout=5000)
                     except:
                         await self._page.get_by_placeholder(selector).first.fill(text, timeout=5000)
+                await EventBus.publish("browser_view", await self.get_screenshot_base64())
                 return f"Typed '{text}' into '{selector}'."
 
             return f"Error: Unknown action {action}"
@@ -177,23 +214,52 @@ class BrowserTool(BaseTool):
 
     async def get_screenshot_base64(self) -> str:
         if not self._page: return ""
-        screenshot = await self._page.screenshot(type="jpeg", quality=70)
+        # Inject highlighting labels before screenshot
+        await self._page.evaluate("""
+            () => {
+                // Remove old labels
+                document.querySelectorAll('.manus-label').forEach(el => el.remove());
+                const interactives = Array.from(document.querySelectorAll('button, a, input, select, textarea, [role="button"]'));
+                interactives.forEach((el, i) => {
+                    const rect = el.getBoundingClientRect();
+                    if (rect.width > 0 && rect.height > 0) {
+                        const label = document.createElement('div');
+                        label.className = 'manus-label';
+                        label.innerText = i;
+                        label.style.position = 'fixed';
+                        label.style.top = rect.top + 'px';
+                        label.style.left = rect.left + 'px';
+                        label.style.background = 'rgba(255, 0, 0, 0.8)';
+                        label.style.color = 'white';
+                        label.style.padding = '2px 4px';
+                        label.style.borderRadius = '3px';
+                        label.style.fontSize = '10px';
+                        label.style.zIndex = '1000000';
+                        label.style.pointerEvents = 'none';
+                        document.body.appendChild(label);
+                    }
+                });
+            }
+        """)
+        
+        screenshot = await self._page.screenshot(type="jpeg", quality=60) # Compressed for cost
         return base64.b64encode(screenshot).decode('utf-8')
 
     async def get_simplified_dom(self) -> List[Dict[str, Any]]:
-        """Simplified DOM for Llama-4-Maverick browser control"""
+        """Simplified DOM for optimized browser control"""
         if not self._page: return []
-        # Basic logic: Get all interactive elements (buttons, links, inputs)
         elements = await self._page.evaluate("""
             () => {
                 const interactives = Array.from(document.querySelectorAll('button, a, input, select, textarea, [role="button"]'));
-                return interactives.map((el, i) => ({
-                    index: i,
-                    tag: el.tagName,
-                    text: el.innerText.trim() || el.value || el.placeholder || '',
-                    type: el.type || '',
-                    role: el.getAttribute('role') || ''
-                })).filter(el => el.text.length > 0 || el.tag === 'INPUT').slice(0, 50); // Limit to top 50 for cost
+                return interactives.map((el, i) => {
+                    const rect = el.getBoundingClientRect();
+                    return {
+                        index: i,
+                        tag: el.tagName,
+                        text: el.innerText.trim() || el.value || el.placeholder || '',
+                        visible: rect.width > 0 && rect.height > 0
+                    };
+                }).filter(el => el.visible && (el.text.length > 0 || el.tag === 'INPUT')).slice(0, 60);
             }
         """)
         return elements

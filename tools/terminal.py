@@ -47,9 +47,15 @@ class TerminalTool(BaseTool):
                 result.append(f"STDERR:\n{error}")
             
             if not result:
-                return f"Command executed successfully (no output). Exit code: {process.returncode}"
-                
-            return "\n\n".join(result) + f"\n\nExit code: {process.returncode}"
+                res_str = f"Command executed successfully (no output). Exit code: {process.returncode}"
+            else:
+                res_str = "\n\n".join(result) + f"\n\nExit code: {process.returncode}"
+            
+            # Publish to UI
+            await EventBus.publish("terminal", res_str)
+            return res_str
             
         except Exception as e:
-            return f"Error executing terminal command: {str(e)}"
+            err_msg = f"Error executing terminal command: {str(e)}"
+            await EventBus.publish("terminal", err_msg)
+            return err_msg

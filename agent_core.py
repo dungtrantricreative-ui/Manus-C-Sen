@@ -12,6 +12,8 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from config import settings
 from schema import Role, Message, Memory, AgentState, ToolChoice, ToolCall
 from tools.monitoring import Monitoring
+from event_bus import EventBus
+
 
 # --- Base Tool Logic ---
 class ToolResult(BaseModel):
@@ -273,6 +275,8 @@ class ToolCallAgent(BaseAgent):
         messages = [{"role": "system", "content": self.system_prompt}] + self.memory.to_dict_list()
         
         yield {"type": "status", "content": "🔧 thinking"}
+        await EventBus.publish("thinking", f"Thinking... (Step {self.current_step})")
+
         
         # Use non-streaming for tool calls (OpenManus approach)
         response = await self.llm.ask_tool(messages, self.available_tools.to_params())
@@ -302,6 +306,8 @@ class ToolCallAgent(BaseAgent):
             args = json.loads(args_str)
             
             yield {"type": "status", "content": f"🔧 Using tool: {name} (Executor)"}
+            await EventBus.publish("terminal", f"> Executing {name} with args: {args_str}")
+
             
             # Caching Logic
             cache_key = f"{name}:{args_str}"
@@ -334,9 +340,14 @@ class ToolCallAgent(BaseAgent):
         analysis = await self.llm.quick_ask(messages)
         
         if "PROCEED" not in analysis.upper():
-            logger.info(f"Critic Feedback: {analysis}")
-            self.memory.add_message(Message.system_message(f"Critic Feedback: {analysis}"))
-            yield {"type": "content", "content": f"\n\n> [!TIP]\n> **Critic Feedback**: {analysis}\n"}
+            last_tool = self.tool_calls[0].function.name if self.tool_calls else ""
+            failover_msg = ""
+            if last_tool == "search" and ("FEEDBACK" in analysis.upper() or "NOT ENOUGH" in analysis.upper()):
+                failover_msg = " [FAILOVER HINT: Search results poor. Use 'browser' with go_to_url to get deeper info.]"
+            
+            logger.info(f"Critic Feedback: {analysis}{failover_msg}")
+            self.memory.add_message(Message.system_message(f"Critic Feedback: {analysis}{failover_msg}"))
+            yield {"type": "content", "content": f"\n\n> [!TIP]\n> **Critic Feedback**: {analysis}{failover_msg}\n"}
         else:
             # Silent proceed or subtle indicator
             pass
@@ -354,16 +365,17 @@ CAPABILITIES:
 - FILE OPS: Use 'file_ops' for reporting or 'terminal' for heavy file tasks.
 
 STRICT PROTOCOL:
-1. MANAGER: Plan steps. Think inside <thinking> tags.
-2. EXECUTOR: Use tools. For system/OS tasks, use 'terminal'.
-3. CRITIC: Review output quality.
+1. MANAGER (Search First): Start with 'search' tool for unknown info to save tokens.
+2. FAILOVER (Deep Dive): If 'search' yields generic/empty results, immediately use 'browser'.
+3. EXECUTOR: Use tools. For system/OS tasks, use 'terminal'.
+4. CRITIC: Review output quality.
 
 COMMANDS:
-- browser: action='go_to_url', action='step' (vision), action='extract'.
+- search: USE THIS FIRST for facts/queries (Cheap).
+- browser: USE THIS for deep extraction, navigation, or when search fails (Premium).
 - terminal: command='your_cmd_here'. 
 - ask_human: Use this to interact with the human user when blocked.
 - file_ops: action='write', filename='report.md', content='...'.
-- search_tool / scraper: Quick info.
 - terminate: End when goal met.
 """
     def add_tool(self, tool: BaseTool):

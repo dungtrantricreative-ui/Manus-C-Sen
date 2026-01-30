@@ -43,8 +43,15 @@ class Message(BaseModel):
 
     def to_dict(self) -> dict:
         message = {"role": self.role}
-        if self.content is not None:
+        # Some providers (Gemini) crash if content is "" when tool_calls is present
+        if self.content:
             message["content"] = self.content
+        elif self.role == Role.ASSISTANT and self.tool_calls:
+            # For assistant tool calls, content should be null/omitted if empty
+            message["content"] = None
+        elif self.content is not None:
+             message["content"] = self.content
+             
         if self.tool_calls is not None:
             message["tool_calls"] = [tool_call.model_dump() for tool_call in self.tool_calls]
         if self.name is not None:
