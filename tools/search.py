@@ -1,6 +1,6 @@
 from tavily import TavilyClient
 from config import settings
-from agent_core import BaseTool
+from base_tool import BaseTool
 from loguru import logger
 
 class SearchTool(BaseTool):

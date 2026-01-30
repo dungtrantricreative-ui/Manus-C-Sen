@@ -1,20 +1,21 @@
 import asyncio
 import os
 import platform
-from agent_core import BaseTool
+from base_tool import BaseTool, ToolResult
+from event_bus import EventBus
 
 class TerminalTool(BaseTool):
     name: str = "terminal"
     description: str = """Execute shell/terminal commands on the host system. 
-    Use this for file management, system checks, or running scripts. 
-    Warning: Be careful with destructive commands."""
+    This tool is UV-aware: it automatically runs python/pip commands within the project's 'uv' environment.
+    Use this for file management, system checks, or running scripts."""
     
     parameters: dict = {
         "type": "object",
         "properties": {
             "command": {
                 "type": "string",
-                "description": "The command to execute (e.g., 'ls' or 'dir')."
+                "description": "The command to execute (e.g., 'ls' or 'python script.py')."
             }
         },
         "required": ["command"]
@@ -22,10 +23,20 @@ class TerminalTool(BaseTool):
 
     async def execute(self, command: str) -> str:
         try:
+            command = command.strip()
+            
             # Use appropriate shell based on OS
             if platform.system() == "Windows":
-                # Using powershell for better consistency
-                shell_cmd = f"powershell -Command \"{command}\""
+                # Auto-quote paths with spaces if not already quoted
+                if " " in command and not (command.startswith('"') or command.startswith("'")):
+                    # Simple heuristic: if it looks like a path/command with spaces, wrap it
+                    # But only if it's a simple command, not a complex pipe/redir
+                    if "|" not in command and ">" not in command and "&" not in command:
+                        command = f'"{command}"'
+
+                # Using powershell for better consistency, escaping double quotes in command
+                safe_command = command.replace('"', '\"')
+                shell_cmd = f"powershell -Command \"{safe_command}\""
             else:
                 shell_cmd = command
 

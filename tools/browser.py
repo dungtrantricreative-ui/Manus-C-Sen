@@ -4,7 +4,8 @@ import json
 import os
 from typing import Optional, Dict, Any, List
 from playwright.async_api import async_playwright, Browser, BrowserContext, Page
-from agent_core import BaseTool, LLM
+from base_tool import BaseTool
+from agent_core import LLM
 from config import settings
 from loguru import logger
 import markdownify

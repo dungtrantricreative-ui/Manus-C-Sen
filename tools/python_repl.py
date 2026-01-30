@@ -1,7 +1,7 @@
 import sys
 import io
 import contextlib
-from agent_core import BaseTool
+from base_tool import BaseTool
 from loguru import logger
 
 class PythonREPLTool(BaseTool):

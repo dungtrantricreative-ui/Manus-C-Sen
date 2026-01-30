@@ -1,6 +1,6 @@
 import asyncio
 from typing import Any
-from agent_core import BaseTool
+from base_tool import BaseTool
 
 class AskHumanTool(BaseTool):
     name: str = "ask_human"

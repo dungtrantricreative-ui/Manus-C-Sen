@@ -1,6 +1,6 @@
 import httpx
 from bs4 import BeautifulSoup
-from agent_core import BaseTool
+from base_tool import BaseTool
 from loguru import logger
 
 class ScraperTool(BaseTool):

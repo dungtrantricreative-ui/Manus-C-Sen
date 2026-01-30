@@ -13,34 +13,8 @@ from config import settings
 from schema import Role, Message, Memory, AgentState, ToolChoice, ToolCall
 from tools.monitoring import Monitoring
 from event_bus import EventBus
+from base_tool import ToolResult, BaseTool
 
-
-# --- Base Tool Logic ---
-class ToolResult(BaseModel):
-    output: Any = Field(default=None)
-    error: Optional[str] = Field(default=None)
-
-    def __str__(self):
-        return f"Error: {self.error}" if self.error else str(self.output)
-
-class BaseTool(ABC, BaseModel):
-    name: str
-    description: str
-    parameters: Optional[dict] = None
-
-    @abstractmethod
-    async def execute(self, **kwargs) -> Any:
-        pass
-
-    def to_param(self) -> Dict:
-        return {
-            "type": "function",
-            "function": {
-                "name": self.name,
-                "description": self.description,
-                "parameters": self.parameters,
-            },
-        }
 
 class ToolCollection:
     def __init__(self, *tools: BaseTool):
@@ -99,7 +73,7 @@ class LLM:
                     "client": AsyncOpenAI(api_key=b.api_key, base_url=b.base_url),
                     "model": b.model_name
                 })
-        
+
         if self.backup_clients:
             logger.info(f"Loaded {len(self.backup_clients)} backup provider(s): {', '.join([b['name'] for b in self.backup_clients])}")
 
@@ -138,6 +112,8 @@ class LLM:
                 return # Success
             except Exception as be:
                 logger.warning(f"Backup {b['name']} failed: {be}")
+                if "bad_request" in str(be).lower():
+                    logger.error(f"BAD REQUEST DETAILS: {be}")
                 continue
         
         raise Exception("All LLM providers (Primary and Backups) failed.")
@@ -172,6 +148,8 @@ class LLM:
                 return response.choices[0].message
             except Exception as be:
                 logger.warning(f"Backup {b['name']} failed: {be}")
+                if "bad_request" in str(be).lower():
+                    logger.error(f"BAD REQUEST DETAILS: {be}")
                 continue
         
         raise Exception("All providers failed for ask_tool.")
@@ -224,6 +202,18 @@ class BaseAgent(BaseModel, ABC):
     class Config:
         arbitrary_types_allowed = True
 
+    def trim_memory(self, max_messages: int = 15):
+        """Keep system prompt, initial user request, and last N messages"""
+        if len(self.memory.messages) <= max_messages:
+            return
+        
+        # Always keep the first message (usually the user's primary request)
+        retained = [self.memory.messages[0]]
+        # Keep the last N-1 messages
+        retained.extend(self.memory.messages[-(max_messages - 1):])
+        self.memory.messages = retained
+        logger.debug(f"Trimmed memory to {len(self.memory.messages)} messages.")
+
     async def run(self, request: Optional[str] = None) -> AsyncGenerator[Dict[str, Any], None]:
         self.current_step = 0
         self.state = AgentState.RUNNING
@@ -269,7 +259,7 @@ class BaseAgent(BaseModel, ABC):
 class ToolCallAgent(BaseAgent):
     available_tools: ToolCollection = Field(default_factory=lambda: ToolCollection(Terminate()))
     tool_calls: List[ToolCall] = Field(default_factory=list)
-    simple_tools: List[str] = Field(default_factory=lambda: ["search", "calculator", "scraper"])  # Skip critic for these
+    simple_tools: List[str] = Field(default_factory=lambda: ["search_tool", "calculator", "scraper", "planning", "terminate", "transcribe", "browser"])  # Skip critic for these
 
     async def step_stream(self) -> AsyncGenerator[Dict[str, Any], None]:
         messages = [{"role": "system", "content": self.system_prompt}] + self.memory.to_dict_list()
@@ -281,7 +271,10 @@ class ToolCallAgent(BaseAgent):
         # Use non-streaming for tool calls (OpenManus approach)
         response = await self.llm.ask_tool(messages, self.available_tools.to_params())
         
-        content = response.content or ""
+        # Aggressive sanitization of LLM content response
+        from schema import sanitize_content
+        content = sanitize_content(response.content) if response.content else ""
+        
         if content:
             yield {"type": "content", "content": content}
         
@@ -303,7 +296,14 @@ class ToolCallAgent(BaseAgent):
         for call in self.tool_calls:
             name = call.function.name
             args_str = call.function.arguments
-            args = json.loads(args_str)
+            try:
+                args = json.loads(args_str)
+            except json.JSONDecodeError:
+                logger.error(f"Failed to parse tool arguments: {args_str}")
+                error_msg = f"Error: Invalid JSON arguments provided for tool {name}."
+                self.memory.add_message(Message.tool_message(error_msg, name, call.id))
+                yield {"type": "content", "content": error_msg}
+                continue
             
             yield {"type": "status", "content": f"🔧 Using tool: {name} (Executor)"}
             await EventBus.publish("terminal", f"> Executing {name} with args: {args_str}")
@@ -320,6 +320,15 @@ class ToolCallAgent(BaseAgent):
                 if settings.CACHE_ENABLED:
                     self.tool_cache[cache_key] = result
             
+            # Surgical Truncation to prevent BadRequest (400) context overflow
+            # We keep the first 4000 and last 4000 characters to preserve context markers and error results
+            max_result_len = 10000 
+            if len(str(result)) > max_result_len:
+                original_len = len(str(result))
+                res_str = str(result)
+                result = res_str[:4000] + f"\n\n... [TRUNCATED {original_len - 8000} CHARS] ...\n\n" + res_str[-4000:]
+                logger.info(f"Advanced surgical head/tail truncation applied to {name} output.")
+
             self.memory.add_message(Message.tool_message(result, name, call.id))
             
             if name == "terminate":
@@ -332,13 +341,19 @@ class ToolCallAgent(BaseAgent):
             return
 
         yield {"type": "status", "content": "🔧 Using tool: verify (Critic)"}
+
         
         critic_prompt = "CRITIC: Analyze the tool output. Is it enough? Answer ONLY with 'PROCEED' or a short 'FEEDBACK: [what is missing]'. DO NOT output code, JSON, or tool calls."
         
         messages = [{"role": "system", "content": self.system_prompt}] + self.memory.to_dict_list() + [{"role": "user", "content": critic_prompt}]
         
-        analysis = await self.llm.quick_ask(messages)
-        
+        analysis_raw = await self.llm.quick_ask(messages)
+        # Absolute Sanitization + Length Limit (Phase 10)
+        from schema import sanitize_content
+        analysis = sanitize_content(analysis_raw)
+        if len(analysis) > 500:
+            analysis = analysis[:500] + "... [TRUNCATED]"
+
         if "PROCEED" not in analysis.upper():
             last_tool = self.tool_calls[0].function.name if self.tool_calls else ""
             failover_msg = ""
@@ -346,7 +361,8 @@ class ToolCallAgent(BaseAgent):
                 failover_msg = " [FAILOVER HINT: Search results poor. Use 'browser' with go_to_url to get deeper info.]"
             
             logger.info(f"Critic Feedback: {analysis}{failover_msg}")
-            self.memory.add_message(Message.system_message(f"Critic Feedback: {analysis}{failover_msg}"))
+            # Use USER message for feedback - more compatible with strict providers
+            self.memory.add_message(Message.user_message(f"Critic Feedback: {analysis}{failover_msg}"))
             yield {"type": "content", "content": f"\n\n> [!TIP]\n> **Critic Feedback**: {analysis}{failover_msg}\n"}
         else:
             # Silent proceed or subtle indicator
@@ -354,29 +370,28 @@ class ToolCallAgent(BaseAgent):
 
 class ManusCompetition(ToolCallAgent):
     name: str = "Manus-Củ-Sen"
-    system_prompt: str = """You are Manus-Củ-Sen Advanced, a Multi-Agent Orchestrator.
-You mimic the original Manus core algorithm using a Planning-Execution-Critic loop.
+    system_prompt: str = """You are Manus-Củ-Sen ULTIMATE, the supreme autonomous AI agent.
+You operate under the "Manus Architecture": Structured Planning -> Execution -> Critic.
 
-CAPABILITIES:
-- PERSISTENT MEMORY: Use 'memory_tool' (save/recall).
-- BROWSER: Use 'browser' for web tasks. action='step' is best.
-- TERMINAL: Use 'terminal' to run CMD/PowerShell/Shell commands. Essential for system management.
-- ASK HUMAN: Use 'ask_human' if you are stuck or need permission.
-- FILE OPS: Use 'file_ops' for reporting or 'terminal' for heavy file tasks.
+AUTONOMOUS CORE PRINCIPLES:
+1. PLAN FIRST: For ANY non-trivial request, your VERY FIRST tool call MUST be `planning(command='create', ...)`.
+2. MANDATORY COMPLETION: Once a plan is created, you MUST NOT stop until EVERY STEP is completed or a failure is reported via `terminate`. 
+3. NO CHATTER: Do not give long summaries in chat if the user asked for a file. Deliver the file, then say it's done. 
+4. NEVER Hallucinate Paths: Use file paths EXACTLY as provided. Wrap in double quotes for terminal commands.
+5. SUPREME PERSISTENCE: If a tool fails, investigate using 'terminal' (dir/ls). Do not give up.
 
-STRICT PROTOCOL:
-1. MANAGER (Search First): Start with 'search' tool for unknown info to save tokens.
-2. FAILOVER (Deep Dive): If 'search' yields generic/empty results, immediately use 'browser'.
-3. EXECUTOR: Use tools. For system/OS tasks, use 'terminal'.
-4. CRITIC: Review output quality.
+STRICT EXECUTION PROTOCOL:
+1. ANALYZE & PLAN: Identify goals. Create a structured plan immediately.
+2. EXECUTE: Follow your plan steps. Use 'browser' for web, 'transcribe' for audio, and 'terminal' for system tasks.
+3. CRITIC: Self-correct if a step fails.
 
 COMMANDS:
-- search: USE THIS FIRST for facts/queries (Cheap).
-- browser: USE THIS for deep extraction, navigation, or when search fails (Premium).
-- terminal: command='your_cmd_here'. 
-- ask_human: Use this to interact with the human user when blocked.
-- file_ops: action='write', filename='report.md', content='...'.
-- terminate: End when goal met.
+- planning: MANDATORY first step.
+- terminal: Use for system tasks. NEVER use 'uv run', use direct 'python' or 'pip'. 
+- search_tool: Quick web search.
+- browser: Deep web interaction.
+- transcribe: Audio to text.
+- terminate: Use only when the goal is achieved or impossible.
 """
     def add_tool(self, tool: BaseTool):
         self.available_tools.tool_map[tool.name] = tool

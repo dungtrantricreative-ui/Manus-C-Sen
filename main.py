@@ -6,6 +6,8 @@ from tools.browser import BrowserTool
 from tools.search import SearchTool
 from tools.terminal import TerminalTool
 from tools.file_ops import FileOpsTool
+from tools.transcription import TranscriptionTool
+from tools.planning import PlanningTool
 from event_bus import EventBus
 
 # Custom bridge to print events to terminal instead of WebSocket
@@ -19,9 +21,11 @@ async def terminal_event_bridge(event: dict):
         print(f"\n[TERMINAL OUTPUT]\n{content}")
     elif event_type == "status":
         print(f"\n[STATUS] {content}")
+    elif event_type == "content":
+        print(f"\n{content}")
     elif event_type == "browser_view":
         # In CLI, we just notify that a screenshot was taken
-        print(f"\n[BROWSER] Screenshot captured (index.html GUI would show this).")
+        print(f"\n[BROWSER] Screenshot captured.")
 
 async def main():
     # Setup EventBus for CLI
@@ -38,6 +42,8 @@ async def main():
     agent.add_tool(SearchTool())
     agent.add_tool(TerminalTool())
     agent.add_tool(FileOpsTool())
+    agent.add_tool(TranscriptionTool())
+    agent.add_tool(PlanningTool())
     agent.add_tool(browser_tool)
     
     try:
@@ -51,8 +57,8 @@ async def main():
                 
                 print("\n" + "-"*30)
                 async for chunk in agent.run(user_input):
-                    # Events are already handled by the bridge
-                    pass
+                    if chunk.get("type") == "content":
+                        print(chunk.get("content", ""), end="", flush=True)
                 print("\n" + "-"*30)
                 
             except KeyboardInterrupt:

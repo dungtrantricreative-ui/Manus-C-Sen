@@ -1,3 +1,4 @@
+import re
 from enum import Enum
 from typing import Any, List, Literal, Optional, Union
 from pydantic import BaseModel, Field
@@ -10,6 +11,25 @@ class Role(str, Enum):
 
 ROLE_VALUES = tuple(role.value for role in Role)
 ROLE_TYPE = Literal[ROLE_VALUES]
+
+def sanitize_content(text: str) -> str:
+    """Strip all internal LLM control tokens to prevent 400 Bad Request errors."""
+    if not text:
+        return text
+    # Strip common control tokens: <|...|>, [INST], [/INST], etc.
+    patterns = [
+        r"<\|.*?\|>",  # Llama-3, ChatML, etc.
+        r"\[/?INST\]",  # Llama-2
+        r"<<SYS>>",     # Llama-2 system
+        r"<\|im_start\|>",
+        r"<\|im_end\|>",
+        r"<|end_header_id|>",
+        r"<|start_header_id|>"
+    ]
+    sanitized = text
+    for p in patterns:
+        sanitized = re.sub(p, "", sanitized)
+    return sanitized.strip()
 
 class ToolChoice(str, Enum):
     NONE = "none"
@@ -43,17 +63,32 @@ class Message(BaseModel):
 
     def to_dict(self) -> dict:
         message = {"role": self.role}
-        # Some providers (Gemini) crash if content is "" when tool_calls is present
-        if self.content:
-            message["content"] = self.content
-        elif self.role == Role.ASSISTANT and self.tool_calls:
-            # For assistant tool calls, content should be null/omitted if empty
+        
+        # Aggressive sanitization of content
+        content = sanitize_content(self.content) if self.content else self.content
+
+        # Some providers (Gemini/Llama) crash if content is "" when tool_calls is present
+        if self.role == Role.ASSISTANT and self.tool_calls:
+            # Force null content for assistant tool calls for maximum compatibility
             message["content"] = None
-        elif self.content is not None:
-             message["content"] = self.content
+        elif content is not None:
+             message["content"] = content
              
         if self.tool_calls is not None:
-            message["tool_calls"] = [tool_call.model_dump() for tool_call in self.tool_calls]
+            # Ensure tool calls are in the pure format expected by OpenAI-like APIs
+            # Stripping any extra fields that Pydantic might add
+            serialized_calls = []
+            for tc in self.tool_calls:
+                call_dict = {
+                    "id": tc.id,
+                    "type": "function",
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments
+                    }
+                }
+                serialized_calls.append(call_dict)
+            message["tool_calls"] = serialized_calls
         if self.name is not None:
             message["name"] = self.name
         if self.tool_call_id is not None:
