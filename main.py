@@ -10,11 +10,12 @@ from tools.scraper import ScraperTool
 from tools.python_repl import PythonREPLTool
 from tools.browser import BrowserTool
 from tools.ask_human import AskHumanTool
+from tools.terminal import TerminalTool
 from config import settings
 
 async def main():
-    if not settings.GEMINI_API_KEY:
-        logger.error("GEMINI_API_KEY is not set in config.toml.")
+    if not settings.API_KEY:
+        logger.error("api_key is not set in config.toml.")
         return
         
     agent = ManusCompetition()
@@ -28,7 +29,8 @@ async def main():
         "scraper": ScraperTool(),
         "python_repl": PythonREPLTool(),
         "browser": BrowserTool(),
-        "ask_human": AskHumanTool()
+        "ask_human": AskHumanTool(),
+        "terminal": TerminalTool()
     }
     
     for tool_name in settings.ENABLED_TOOLS:

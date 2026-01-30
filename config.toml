@@ -1,16 +1,28 @@
 [llm]
-gemini_api_key = "74a9bc78-8f70-495d-ac96-22b3589837b4"
-# Using Groq Llama for high-speed scout performance
-model_name = "gpt-oss-120b"
-vision_model_name = "llama-4-maverick-17b-128e-instruct"
-base_url = "https://api.sambanova.ai/v1"
-groq_api_key = "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"
-groq_model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
-groq_base_url = "https://api.groq.com/openai/v1"
+api_key = "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"
+model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
+vision_model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
+base_url = "https://api.groq.com/openai/v1"
+
+# Example: Groq backup (supports function calling)
+# [[llm.backups]]
+# name = "groq"
+# api_key = "gsk_..."
+# model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
+# base_url = "https://api.groq.com/openai/v1"
+# supports_tools = true
+
+# Example: Ollama (does NOT support function calling reliably)
+# [[llm.backups]]
+# name = "ollama"
+# api_key = "ollama"
+# model_name = "qwen3-vl:2b"
+# base_url = "http://localhost:11434/v1"
+# supports_tools = true  # ← Will be skipped automatically
 
 [tools]
 tavily_api_key = "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"
-enabled = ["search", "memory", "file_ops", "calculator", "scraper", "python_repl", "browser", "ask_human"]
+enabled = ["search", "memory", "file_ops", "calculator", "scraper", "python_repl", "browser", "ask_human", "terminal"]
 
 [agent]
 max_steps = 20
@@ -18,7 +30,7 @@ name = "Manus-Củ-Sen"
 
 [cache]
 enabled = true
-ttl_seconds = 300
+ttl_seconds = 600  # 10 minutes - reduce duplicate calls
 
 [memory]
 file_path = "memory.json"

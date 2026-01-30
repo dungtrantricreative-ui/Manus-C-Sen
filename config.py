@@ -3,16 +3,21 @@ import toml
 from pydantic import BaseModel, Field
 from typing import List
 
+class BackupProvider(BaseModel):
+    name: str = "backup"
+    api_key: str = ""
+    model_name: str = ""
+    base_url: str = ""
+    supports_tools: bool = True  # Default to True for backward compatibility
+
 class LLMSettings(BaseModel):
-    gemini_api_key: str = ""
+    api_key: str = ""
     model_name: str = "gpt-oss-120b"
     vision_model_name: str = "llama-4-maverick-17b-128e-instruct"
     base_url: str = "https://api.sambanova.ai/v1"
     
-    # Backup Provider (Groq)
-    groq_api_key: str = ""
-    groq_model_name: str = "meta-llama/llama-4-scout-17b-16e-instruct"
-    groq_base_url: str = "https://api.groq.com/openai/v1"
+    # List of additional backup providers
+    backups: List[BackupProvider] = []
 
 class ToolSettings(BaseModel):
     tavily_api_key: str = ""
@@ -60,15 +65,13 @@ settings_obj = Settings.load()
 # For backward compatibility and easy access
 class LegacySettings:
     def __init__(self, s: Settings):
-        self.GEMINI_API_KEY = s.llm.gemini_api_key
+        self.API_KEY = s.llm.api_key
         self.MODEL_NAME = s.llm.model_name
         self.VISION_MODEL_NAME = s.llm.vision_model_name
         self.BASE_URL = s.llm.base_url
         
-        # Backup Credentials
-        self.GROQ_API_KEY = s.llm.groq_api_key
-        self.GROQ_MODEL_NAME = s.llm.groq_model_name
-        self.GROQ_BASE_URL = s.llm.groq_base_url
+        # Multiple Backup Providers
+        self.BACKUPS = s.llm.backups
         
         self.TAVILY_API_KEY = s.tools.tavily_api_key
         self.MAX_STEPS = s.agent.max_steps

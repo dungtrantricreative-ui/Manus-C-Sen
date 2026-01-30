@@ -81,24 +81,29 @@ class Terminate(BaseTool):
     async def execute(self, output: str) -> str:
         return output
 
-# --- LLM Client with Streaming & Failover ---
 class LLM:
     def __init__(self):
-        # Primary Client (SambaNova/OpenAI-compatible)
+        # Primary Client
         self.primary_client = AsyncOpenAI(
-            api_key=settings.GEMINI_API_KEY,
+            api_key=settings.API_KEY,
             base_url=settings.BASE_URL
         )
-        # Backup Client (Groq)
-        self.groq_client = None
-        if settings.GROQ_API_KEY:
-            self.groq_client = AsyncOpenAI(
-                api_key=settings.GROQ_API_KEY,
-                base_url=settings.GROQ_BASE_URL
-            )
+        # Dynamic Backup Clients - only load those that support tools
+        self.backup_clients = []
+        for b in settings.BACKUPS:
+            if b.api_key and b.supports_tools:  # Filter by tool support
+                self.backup_clients.append({
+                    "name": b.name,
+                    "client": AsyncOpenAI(api_key=b.api_key, base_url=b.base_url),
+                    "model": b.model_name
+                })
+        
+        if self.backup_clients:
+            logger.info(f"Loaded {len(self.backup_clients)} backup provider(s): {', '.join([b['name'] for b in self.backup_clients])}")
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2, min=5, max=15))
     async def ask_tool_stream(self, messages: List[dict], tools: List[dict], model: Optional[str] = None) -> AsyncGenerator[Dict[str, Any], None]:
+        # Try primary first
         try:
             response = await self.primary_client.chat.completions.create(
                 model=model or settings.MODEL_NAME,
@@ -109,11 +114,18 @@ class LLM:
             )
             async for chunk in response:
                 yield chunk
+            return # Success
         except Exception as e:
-            if self.groq_client and ("429" in str(e) or "rate limit" in str(e).lower() or "timeout" in str(e).lower()):
-                logger.warning(f"Primary LLM failed: {e}. Falling back to Groq...")
-                response = await self.groq_client.chat.completions.create(
-                    model=settings.GROQ_MODEL_NAME,
+            if not self.backup_clients or not any(x in str(e).lower() for x in ["429", "rate limit", "timeout", "connection"]):
+                raise e
+            logger.debug(f"Primary LLM failed: {e}. Starting failover sequence...")
+
+        # Try backups in order
+        for b in self.backup_clients:
+            try:
+                logger.debug(f"Trying backup provider: {b['name']}")
+                response = await b["client"].chat.completions.create(
+                    model=b["model"],
                     messages=messages,
                     tools=tools,
                     tool_choice="auto",
@@ -121,12 +133,50 @@ class LLM:
                 )
                 async for chunk in response:
                     yield chunk
-            else:
+                return # Success
+            except Exception as be:
+                logger.warning(f"Backup {b['name']} failed: {be}")
+                continue
+        
+        raise Exception("All LLM providers (Primary and Backups) failed.")
+
+    @retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=2, max=5))
+    async def ask_tool(self, messages: List[dict], tools: List[dict], tool_choice: str = "auto") -> Any:
+        """Non-streaming tool call - better compatibility with Gemini/DeepSeek"""
+        try:
+            response = await self.primary_client.chat.completions.create(
+                model=settings.MODEL_NAME,
+                messages=messages,
+                tools=tools,
+                tool_choice=tool_choice,
+                stream=False
+            )
+            return response.choices[0].message
+        except Exception as e:
+            if not self.backup_clients or not any(x in str(e).lower() for x in ["429", "rate limit", "timeout", "connection"]):
                 raise e
+            logger.debug(f"Primary ask_tool failed: {e}")
+        
+        for b in self.backup_clients:
+            try:
+                logger.debug(f"Trying backup: {b['name']}")
+                response = await b["client"].chat.completions.create(
+                    model=b["model"],
+                    messages=messages,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    stream=False
+                )
+                return response.choices[0].message
+            except Exception as be:
+                logger.warning(f"Backup {b['name']} failed: {be}")
+                continue
+        
+        raise Exception("All providers failed for ask_tool.")
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2, min=5, max=15))
-    async def quick_ask(self, messages: List[dict], max_tokens: int = 500, model: Optional[str] = None) -> str:
-        """For non-tool, quick reflection or specialized calls with failover"""
+    async def quick_ask(self, messages: List[dict], max_tokens: int = 200, model: Optional[str] = None) -> str:
+        """Sequential failover for quick reflection calls"""
         try:
             response = await self.primary_client.chat.completions.create(
                 model=model or settings.MODEL_NAME,
@@ -136,18 +186,25 @@ class LLM:
             )
             return response.choices[0].message.content or ""
         except Exception as e:
-            if self.groq_client and ("429" in str(e) or "rate limit" in str(e).lower() or "timeout" in str(e).lower()):
-                logger.warning(f"Primary quick_ask failed: {e}. Falling back to Groq...")
-                # Groq fallback uses Scout (Llama 4) for both general and vision logic (Scout supports vision context if prompt is right)
-                response = await self.groq_client.chat.completions.create(
-                    model=settings.GROQ_MODEL_NAME,
+            if not self.backup_clients or not any(x in str(e).lower() for x in ["429", "rate limit", "timeout", "connection"]):
+                raise e
+            logger.debug(f"Primary quick_ask failed: {e}. Starting failover sequence...")
+
+        for b in self.backup_clients:
+            try:
+                logger.debug(f"Trying backup provider (quick_ask): {b['name']}")
+                response = await b["client"].chat.completions.create(
+                    model=b["model"],
                     messages=messages,
                     max_tokens=max_tokens,
                     stream=False
                 )
                 return response.choices[0].message.content or ""
-            else:
-                raise e
+            except Exception as be:
+                logger.warning(f"Backup {b['name']} quick_ask failed: {be}")
+                continue
+
+        raise Exception("All LLM providers failed for quick_ask.")
 
 # --- Optimized Agent Core (The Manus-Củ-Sen Engine) ---
 class BaseAgent(BaseModel, ABC):
@@ -181,9 +238,11 @@ class BaseAgent(BaseModel, ABC):
                     yield chunk
                 
                 if self.state != AgentState.FINISHED:
-                    # After each tool execution, perform a internal CRITIC verification
-                    async for crit in self.reflect_stream():
-                        yield crit
+                    # Skip critic for simple tools (search, calculator) to save cost
+                    last_tool = self.tool_calls[0].function.name if self.tool_calls else ""
+                    if last_tool not in self.simple_tools:
+                        async for crit in self.reflect_stream():
+                            yield crit
 
                 if self.is_stuck():
                     logger.warning(f"[{self.name}] Agent stuck. Forcing rethink.")
@@ -208,41 +267,28 @@ class BaseAgent(BaseModel, ABC):
 class ToolCallAgent(BaseAgent):
     available_tools: ToolCollection = Field(default_factory=lambda: ToolCollection(Terminate()))
     tool_calls: List[ToolCall] = Field(default_factory=list)
+    simple_tools: List[str] = Field(default_factory=lambda: ["search", "calculator", "scraper"])  # Skip critic for these
 
     async def step_stream(self) -> AsyncGenerator[Dict[str, Any], None]:
-        # 1. ORCHESTRATOR / PLANNER Phase
         messages = [{"role": "system", "content": self.system_prompt}] + self.memory.to_dict_list()
         
-        full_content = ""
-        tool_calls_data = []
+        yield {"type": "status", "content": "🔧 thinking"}
         
-        yield {"type": "status", "content": "🔧 Using tool: thinking (Manager)"}
+        # Use non-streaming for tool calls (OpenManus approach)
+        response = await self.llm.ask_tool(messages, self.available_tools.to_params())
         
-        async for chunk in self.llm.ask_tool_stream(messages, self.available_tools.to_params()):
-            delta = chunk.choices[0].delta
-            if delta.content:
-                full_content += delta.content
-                yield {"type": "content", "content": delta.content}
-            
-            if delta.tool_calls:
-                for tc_delta in delta.tool_calls:
-                    if len(tool_calls_data) <= tc_delta.index:
-                        tool_calls_data.append({
-                            "id": tc_delta.id,
-                            "type": "function",
-                            "function": {"name": "", "arguments": ""}
-                        })
-                    
-                    if tc_delta.id:
-                        tool_calls_data[tc_delta.index]["id"] = tc_delta.id
-                    if tc_delta.function.name:
-                        tool_calls_data[tc_delta.index]["function"]["name"] = tc_delta.function.name
-                    if tc_delta.function.arguments:
-                        tool_calls_data[tc_delta.index]["function"]["arguments"] += tc_delta.function.arguments
-
-        self.tool_calls = [ToolCall(**tc) for tc in tool_calls_data]
+        content = response.content or ""
+        if content:
+            yield {"type": "content", "content": content}
         
-        assistant_msg = Message.from_tool_calls(self.tool_calls, content=full_content) if self.tool_calls else Message.assistant_message(full_content)
+        # Parse tool calls
+        self.tool_calls = [ToolCall(**{
+            "id": tc.id,
+            "type": "function",
+            "function": {"name": tc.function.name, "arguments": tc.function.arguments}
+        }) for tc in (response.tool_calls or [])]
+        
+        assistant_msg = Message.from_tool_calls(self.tool_calls, content=content) if self.tool_calls else Message.assistant_message(content)
         self.memory.add_message(assistant_msg)
         
         if not self.tool_calls:
@@ -303,16 +349,19 @@ You mimic the original Manus core algorithm using a Planning-Execution-Critic lo
 CAPABILITIES:
 - PERSISTENT MEMORY: Use 'memory_tool' (save/recall).
 - BROWSER: Use 'browser' for web tasks. action='step' is best.
+- TERMINAL: Use 'terminal' to run CMD/PowerShell/Shell commands. Essential for system management.
 - ASK HUMAN: Use 'ask_human' if you are stuck or need permission.
-- FILE OPS: Use 'file_ops' - MANDATORY: If user asks for a 'report', 'file', or 'doc', you MUST use file_ops to write it to a .md or .txt file.
+- FILE OPS: Use 'file_ops' for reporting or 'terminal' for heavy file tasks.
 
 STRICT PROTOCOL:
 1. MANAGER: Plan steps. Think inside <thinking> tags.
-2. EXECUTOR: Use tools. If asked for a report, WRITE A FILE first, then inform the user.
+2. EXECUTOR: Use tools. For system/OS tasks, use 'terminal'.
 3. CRITIC: Review output quality.
 
 COMMANDS:
 - browser: action='go_to_url', action='step' (vision), action='extract'.
+- terminal: command='your_cmd_here'. 
+- ask_human: Use this to interact with the human user when blocked.
 - file_ops: action='write', filename='report.md', content='...'.
 - search_tool / scraper: Quick info.
 - terminate: End when goal met.

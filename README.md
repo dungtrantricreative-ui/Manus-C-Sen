@@ -18,18 +18,13 @@ Manus-Củ-Sen doesn't just "chat"—it thinks and acts through a three-stage sp
 
 ### 👁️ Dual-Model Visible Browser
 *   **Visible Interaction**: Watch the AI work in real-time as a browser window opens on your desktop.
-*   **Maverick Vision Specialist**: Uses the specialized **Llama-4-Maverick** model to analyze screenshots and interact with web elements with human-like precision.
-*   **Cost Optimized**: Intelligent DOM simplification reduces token usage by up to 70% without losing context.
+*   **Maverick Vision Specialist**: Uses specialized Vision models to analyze screenshots and interact with web elements.
 
-### 🛡️ Multi-Provider Failover System
-*   **SambaNova Primary**: leverages high-parameter models like **GPT-OSS-120B** for deep reasoning.
-*   **Groq Backup**: Automatically fails over to **Groq (Llama 4 Scout)** if the primary provider hits a 429 Rate Limit or experiences downtime.
+### 💻 Terminal/Shell Empowerment
+*   **CMD & PowerShell Access**: The AI can now execute terminal commands to manage files, install dependencies, or run scripts directly on your system.
 
-### 🤝 Human-in-the-loop (`ask_human`)
-*   When blocked by ambiguity or requiring permission for sensitive actions (e.g., payments, deletion), the AI will pause and ask you for guidance directly in the console.
-
-### 🐍 Integrated Python Sandbox
-*   Includes a Python REPL for complex math, data analysis, and chart generation on the fly.
+### 🛡️ Infinite Failover System
+*   **Dynamic Backups**: Add unlimited backup providers in `config.toml`. The agent will automatically cycle through them if the primary provider hits a rate limit (429) or connection error.
 
 ---
 
@@ -37,36 +32,38 @@ Manus-Củ-Sen doesn't just "chat"—it thinks and acts through a three-stage sp
 
 ### 1. Prerequisites
 *   Python 3.10+
-*   API Keys: SambaNova Cloud (Primary) and/or Groq (Backup).
+*   API Keys: SambaNova (Primary), Groq, or OpenRouter (Backups).
 
 ### 2. Installation
-
 ```powershell
-# Clone the repository
+# Clone and install
 git clone https://github.com/your-repo/manus-cu-sen.git
 cd manus-cu-sen
-
-# Install dependencies
 pip install -r requirements.txt
-
-# Install Playwright Browser binaries (Crucial for BrowserTool)
 python -m playwright install chromium
 ```
 
 ### 3. Configuration
-Edit `config.toml` in the project root:
+Edit `config.toml` in the project root. We use a standardized **`api_key`** format for all providers:
 
 ```toml
 [llm]
-gemini_api_key = "YOUR_SAMBANOVA_KEY"
+api_key = "PRIMARY_KEY_HERE"
 model_name = "gpt-oss-120b"
-vision_model_name = "llama-4-maverick-17b-128e-instruct"
 base_url = "https://api.sambanova.ai/v1"
 
-# GROQ BACKUP (Highly Recommended)
-groq_api_key = "YOUR_GROQ_KEY"
-groq_model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
-groq_base_url = "https://api.groq.com/openai/v1"
+# --- Add as many backups as you want ---
+[[llm.backups]]
+name = "groq_backup"
+api_key = "GROQ_KEY_HERE"
+model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
+base_url = "https://api.groq.com/openai/v1"
+
+[[llm.backups]]
+name = "openrouter_backup"
+api_key = "OR_KEY_HERE"
+model_name = "deepseek/deepseek-chat"
+base_url = "https://openrouter.ai/api/v1"
 ```
 
 ### 4. Run the Agent
