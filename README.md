@@ -84,14 +84,19 @@ Powered by Tavily for deep, unfiltered web searching.
 All parameters are managed via `config.toml`:
 
 ```toml
-[primary]
+[llm]
+api_key = "sk-..."
 model_name = "gpt-4o"
 base_url = "https://api.openai.com/v1"
 
-[[backups]]
+[[llm.backups]]
 name = "Gemini-Pro"
 model_name = "gemini-1.5-pro"
+api_key = "..."
 supports_tools = true
+
+[tools]
+tavily_api_key = "tvly-..."
 ```
 
 ### 💰 Cost Optimization
