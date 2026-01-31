@@ -1,5 +1,6 @@
 [llm]
-api_key = "" # Set in .env as LLM_API_KEY
+api_key = "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"
+# model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
 model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
 vision_model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
 base_url = "https://api.groq.com/openai/v1"
@@ -7,13 +8,13 @@ base_url = "https://api.groq.com/openai/v1"
 # Example: Groq backup (supports function calling)
 [[llm.backups]]
 name = "groq"
-api_key = "" # Set in .env as BACKUP_GROQ_API_KEY
+api_key = "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"
 model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
 base_url = "https://api.groq.com/openai/v1"
 supports_tools = true
 
 [tools]
-tavily_api_key = "" # Set in .env as TAVILY_API_KEY
+tavily_api_key = "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"
 enabled = ["search", "memory", "file_ops", "calculator", "scraper", "python_repl", "browser", "ask_human", "terminal"]
 
 [agent]

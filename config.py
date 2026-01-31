@@ -2,10 +2,6 @@ import os
 import toml
 from pydantic import BaseModel, Field
 from typing import List
-from dotenv import load_dotenv
-
-# Load .env file if it exists
-load_dotenv()
 
 class BackupProvider(BaseModel):
     name: str = "backup"
@@ -15,21 +11,21 @@ class BackupProvider(BaseModel):
     supports_tools: bool = True
 
 class LLMSettings(BaseModel):
-    api_key: str = os.getenv("LLM_API_KEY", "")
-    model_name: str = os.getenv("LLM_MODEL_NAME", "gpt-oss-120b")
-    vision_model_name: str = os.getenv("VISION_MODEL_NAME", "llama-4-maverick-17b-128e-instruct")
-    base_url: str = os.getenv("LLM_BASE_URL", "https://api.sambanova.ai/v1")
+    api_key: str = ""
+    model_name: str = "gpt-oss-120b"
+    vision_model_name: str = "llama-4-maverick-17b-128e-instruct"
+    base_url: str = "https://api.sambanova.ai/v1"
     
     # List of additional backup providers
     backups: List[BackupProvider] = []
 
 class ToolSettings(BaseModel):
-    tavily_api_key: str = os.getenv("TAVILY_API_KEY", "")
+    tavily_api_key: str = ""
     enabled: List[str] = ["search", "memory", "file_ops", "calculator", "scraper", "python_repl", "browser", "ask_human", "terminal"]
 
 class AgentSettings(BaseModel):
-    max_steps: int = int(os.getenv("MAX_STEPS", "20"))
-    name: str = os.getenv("AGENT_NAME", "Manus-Củ-Sen")
+    max_steps: int = 20
+    name: str = "Manus-Củ-Sen"
 
 class CacheSettings(BaseModel):
     enabled: bool = True
