@@ -57,6 +57,7 @@ class EditorTool(BaseTool):
     _history: Dict[str, List[str]] = {}
 
     async def execute(self, command: str, path: str, **kwargs) -> str:
+        path = self._sanitize_path(path)
         path = os.path.abspath(path)
         
         if command == "view":
@@ -71,6 +72,19 @@ class EditorTool(BaseTool):
             return await self._undo(path)
         
         return f"Error: Unknown command '{command}'"
+
+    def _sanitize_path(self, path: str) -> str:
+        """Safety net: Redirect stray or hallucinated paths to outputs/"""
+        # If it's a Linux hallucination like /tmp/ or /home/
+        if path.startswith('/') or path.startswith('~'):
+             filename = os.path.basename(path)
+             return os.path.join("outputs", filename)
+        
+        # If it's a simple relative path without 'outputs/' prefix
+        if not os.path.isabs(path) and not path.startswith("outputs") and not path.startswith("tools") and not path.startswith("knowledge"):
+             return os.path.join("outputs", path)
+             
+        return path
 
     async def _view(self, path: str, view_range: Optional[List[int]]) -> str:
         if not os.path.exists(path):

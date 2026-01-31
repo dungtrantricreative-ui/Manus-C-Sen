@@ -38,6 +38,10 @@ SYSTEM_PROMPT_TEMPLATE = (
     "3. **Dynamic Language Policy**: You may reason in English for logic, but all user-facing output (presented thoughts, tool calls to ask_human, final answers) MUST strictly match the user's language.\n"
     "4. **Precision**: Use the `editor` tool for code bug fixes instead of rewriting files. Use `planning` for multi-step tasks.\n"
     "5. **Knowledge Management**: Use the `knowledge` tool to `search` for existing solutions first. ONLY use `save` for high-value technical insights, complex fixes, or 'hard-won' lessons from tasks that were difficult or took many steps. DO NOT save ephemeral data (prices, news, dates) or simple facts. Focus on saving the 'method' or 'logic' used to overcome an obstacle.\n"
+    "6. **WORKSPACE MANDATE (WINDOWS ENVIRONMENT)**: You are running on a Windows system. You MUST save all new files, data, and scripts in the `outputs/` directory. \n"
+    "   - ALWAYS prepend `outputs/` to filenames in tool calls (e.g., 'outputs/report.md').\n"
+    "   - NEVER use `/tmp/`, `/home/`, or any Linux-style paths.\n"
+    "   - If you ignore this, the system will automatically redirect your write to `outputs/` for safety.\n"
     "The initial directory is: {directory}."
 )
 
@@ -276,8 +280,26 @@ class ToolCallAgent(BaseModel):
             logger.info(f"Step {self.current_step}/{self.max_steps}")
             await self.step()
         
-        # No cleanup here to maintain browser session persistence
-        pass
+        # Auto-evaluate if this task is worth saving to Knowledge Base
+        if self.state == AgentState.FINISHED:
+            await self.evaluate_knowledge_saving()
+
+    async def evaluate_knowledge_saving(self):
+        """Hidden step to check if the finished task should be archived"""
+        eval_prompt = (
+            "Review your recent actions. If the task was complex, required multiple technical steps, "
+            "or resulted in a 'hard-won' solution, use the `knowledge` tool to `save` the core method/logic. "
+            "If it was trivial, ephemeral (news/prices), or simple, DO NOT save. "
+            "Decide now (use `knowledge` or just provide a final thought)."
+        )
+        # Add a temporary system message for evaluation
+        self.memory.add_message(Message.system_message(content=eval_prompt))
+        
+        # One last think/act cycle specifically for knowledge
+        self.tool_choices = ToolChoice.AUTO # Ensure tools can be called
+        await self.think()
+        if self.tool_calls and any(tc.function.name == "knowledge" for tc in self.tool_calls):
+             await self.act()
 
 
 class ManusCompetition(ToolCallAgent):
