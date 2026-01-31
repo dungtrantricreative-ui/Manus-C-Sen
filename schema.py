@@ -201,17 +201,51 @@ class Message(BaseModel):
             **kwargs,
         )
 
-
 class Memory(BaseModel):
     messages: List[Message] = Field(default_factory=list)
     max_messages: int = Field(default=100)
 
+    async def summarize(self, llm: Any) -> None:
+        """Summarize older messages to stay within token limits."""
+        # Only summarize if we exceed max_messages
+        if len(self.messages) <= self.max_messages:
+            return
+
+        # Keep system prompt(s) and the most recent N messages
+        system_msgs = [m for m in self.messages if m.role == Role.SYSTEM]
+        # We'll keep the last 10 messages for immediate context
+        keep_recent = 10
+        to_summarize = [m for m in self.messages if m.role != Role.SYSTEM][:-keep_recent]
+        recent_msgs = [m for m in self.messages if m.role != Role.SYSTEM][-keep_recent:]
+
+        if not to_summarize:
+            # If after removing system messages we don't have enough to summarize effectively
+            # just fallback to slicing
+            self.messages = system_msgs + recent_msgs
+            return
+
+        summary_prompt = "Tóm tắt ngắn gọn nội dung cuộc hội thoại sau đây, giữ lại các thông tin quan trọng nhất:\n\n"
+        for msg in to_summarize:
+            content = msg.content or ""
+            if msg.tool_calls:
+                content += f" [Tool Calls: {', '.join([tc.function.name for tc in msg.tool_calls])}]"
+            summary_prompt += f"{msg.role}: {content}\n"
+
+        try:
+            summary_text = await llm.quick_ask([{"role": "user", "content": summary_prompt}])
+            summary_msg = Message.assistant_message(
+                content=f"[TÓM TẮT HỘI THOẠI TRƯỚC ĐÓ]: {summary_text}"
+            )
+            self.messages = system_msgs + [summary_msg] + recent_msgs
+        except Exception as e:
+            from loguru import logger
+            logger.error(f"Failed to summarize memory: {e}")
+            # Fallback to sliding window
+            self.messages = system_msgs + recent_msgs
+
     def add_message(self, message: Message) -> None:
-        """Add a message to memory"""
+        """Add a message to memory. Summarization is handled externally via the summarize method."""
         self.messages.append(message)
-        # Optional: Implement message limit
-        if len(self.messages) > self.max_messages:
-            self.messages = self.messages[-self.max_messages :]
 
     def add_messages(self, messages: List[Message]) -> None:
         """Add multiple messages to memory"""

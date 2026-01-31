@@ -123,17 +123,14 @@ class ToolCallAgent(BaseModel):
     async def think(self) -> bool:
         """Process current state and decide next actions using tools"""
         if self.next_step_prompt:
-            # Check if last message is user message equal to next_step_prompt to avoid duplication?
-            # OpenManus appends it every time.
-            user_msg = Message.user_message(self.next_step_prompt)
-            # We don't append to memory permanently usually for prompts, but OpenManus does:
-            # self.messages += [user_msg]
-            # But here `messages` is property of memory.
-            # We should probably pass it as a temporary message to ask_tool, 
-            # OR append it to memory. OpenManus appends it.
-            self.memory.add_message(user_msg)
+            # Check if last message is already the same prompt to avoid duplication
+            if not self.memory.messages or self.memory.messages[-1].content != self.next_step_prompt:
+                user_msg = Message.user_message(self.next_step_prompt)
+                self.memory.add_message(user_msg)
 
         try:
+            # Trigger memory summarization if needed
+            await self.memory.summarize(self.llm)
             # Get response with tool options
             response = await self.llm.ask_tool(
                 messages=self.memory.messages,
@@ -247,8 +244,8 @@ class ToolCallAgent(BaseModel):
             logger.info(f"Step {self.current_step}/{self.max_steps}")
             await self.step()
         
-        if self.browser_context_helper:
-             await self.browser_context_helper.cleanup_browser()
+        # No cleanup here to maintain browser session persistence
+        pass
 
 
 class ManusCompetition(ToolCallAgent):
