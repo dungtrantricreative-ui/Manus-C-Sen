@@ -15,7 +15,7 @@ logger.add(RichHandler(rich_tracebacks=True, markup=True), format="{message}", l
 async def main():
     console = Console()
     console.print(Panel.fit(
-        "[bold green]🐲 Manus-Củ-Sen ULTIMATE[/bold green]\n[dim](Brain Transplant Edition)[/dim]\n\nPowered by: [cyan]Browser-Use[/cyan], [magenta]Vision Context[/magenta], & [yellow]Dynamic Prompts[/yellow]",
+        "[bold green]Manus-Cu-Sen ULTIMATE[/bold green]\n[dim](Brain Transplant Edition)[/dim]\n\nPowered by: [cyan]Browser-Use[/cyan], [magenta]Vision Context[/magenta], & [yellow]Dynamic Prompts[/yellow]",
         border_style="green",
         title="Welcome"
     ))
@@ -32,7 +32,7 @@ async def main():
     try:
         while True:
             try:
-                user_input = input("\n👤 User: ").strip()
+                user_input = input("\nUser: ").strip()
                 if not user_input:
                     continue
                 if user_input.lower() in ["exit", "quit", "q"]:
@@ -44,11 +44,19 @@ async def main():
                 print("\n" + "-"*30)
                 # Run the agent (it logs its own thoughts/actions)
                 await agent.run()
+                
+                # Check for final answer to display prominently
+                if agent.final_answer:
+                     console.print("\n" + "─"*50)
+                     console.print(f"[bold green]Manus-Cu-Sen:[/bold green]\n{agent.final_answer}")
+                     console.print("─"*50)
+                
                 print("\n" + "-"*30)
                 
                 # Reset for next turn (keep memory, reset counters)
                 agent.current_step = 0
                 agent.state = AgentState.IDLE
+                agent.final_answer = None
                 
             except KeyboardInterrupt:
                 break

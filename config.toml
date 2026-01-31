@@ -15,7 +15,7 @@ supports_tools = true
 
 [tools]
 tavily_api_key = "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"
-enabled = ["search", "memory", "file_ops", "calculator", "scraper", "python_repl", "browser", "ask_human", "terminal"]
+enabled = ["search", "memory", "file_ops", "calculator", "scraper", "python_repl", "browser", "ask_human", "terminal", "editor", "planning", "knowledge"]
 
 [agent]
 max_steps = 20

@@ -17,8 +17,8 @@ class AskHumanTool(BaseTool):
     }
 
     async def execute(self, question: str) -> str:
-        print(f"\n\033[95m🤖 AI Question: {question}\033[0m")
+        # Styled output for CLI
+        print(f"\n\033[1;35mCAU HOI TU AI:\033[0m \033[35m{question}\033[0m")
         # Since we are in an async loop, we use to_thread to keep input() from blocking the whole event loop
-        # though for this simple CLI it might not matter much, it's safer.
-        response = await asyncio.to_thread(input, "📝 Your Response: ")
+        response = await asyncio.to_thread(input, "\033[1;32mTRA LOI CUA BAN:\033[0m ")
         return response

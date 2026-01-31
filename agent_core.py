@@ -3,8 +3,12 @@ import json
 import traceback
 import os
 from typing import List, Optional, Union, Dict, Any
-from pydantic import Field, model_validator, BaseModel
+from pydantic import Field, model_validator, BaseModel, PrivateAttr
 from loguru import logger
+from rich.console import Console
+from rich.panel import Panel
+from rich.text import Text
+from rich.live import Live
 
 from config import settings
 from schema import Message, AgentState, ToolChoice, ToolCall, Role, Function
@@ -17,21 +21,29 @@ from tools.python_tool import PythonTool
 from tools.terminate import Terminate
 from tools.terminal import TerminalTool
 from tools.search import SearchTool
+from tools.editor import EditorTool
+from tools.planning import PlanningTool
+from tools.ask_human import AskHumanTool
+from tools.knowledge import KnowledgeTool
 
 # Prompts
 SYSTEM_PROMPT_TEMPLATE = (
-    "You are Manus-Củ-Sen, an all-capable AI assistant, aimed at solving any task presented by the user. "
-    "You have various tools at your disposal that you can call upon to efficiently complete complex requests. "
-    "Whether it's programming, information retrieval, file processing, web browsing, or human interaction, you can handle it all. "
-    "The initial directory is: {directory}. "
-    "IMPORTANT: You MUST always answer in the same language as the user's last message. "
-    "If the user speaks Vietnamese, you answer in Vietnamese. If English, answer in English."
+    "You are Manus-Cu-Sen, an all-capable AI assistant. "
+    "You solve complex tasks by combining reasoning with specialized tools. "
+    "CORE MISSION: Be proactive, resourceful, and professional. Avoid bothering the user unless absolutely necessary.\n"
+    "SYSTEM GUIDELINES:\n"
+    "1. **Proactive Search & Browse**: Use `search_tool` for general questions. IF THE USER PROVIDES A URL OR IF SEARCH RESULTS ARE POOR, YOU MUST USE `browser_use` to access the site and find information. Never claim you cannot access a site if you have `browser_use`.\n"
+    "2. **Helpful Human-Interaction**: The `ask_human` tool is for HINTS, not for repeating the user's query. "
+    "If you use it, you MUST explain exactly what you tried (e.g., 'Tôi đã thử tìm ở X và Y nhưng không thấy Z, bạn có gợi ý gì không?'). Never ask a question that the user has already provided the answer to in the chat history.\n"
+    "3. **Dynamic Language Policy**: You may reason in English for logic, but all user-facing output (presented thoughts, tool calls to ask_human, final answers) MUST strictly match the user's language.\n"
+    "4. **Precision**: Use the `editor` tool for code bug fixes instead of rewriting files. Use `planning` for multi-step tasks.\n"
+    "5. **Knowledge Management**: Use the `knowledge` tool to `search` for existing solutions first. ONLY use `save` for high-value technical insights, complex fixes, or 'hard-won' lessons from tasks that were difficult or took many steps. DO NOT save ephemeral data (prices, news, dates) or simple facts. Focus on saving the 'method' or 'logic' used to overcome an obstacle.\n"
+    "The initial directory is: {directory}."
 )
 
 NEXT_STEP_PROMPT = """
-Based on user needs, proactively select the most appropriate tool or combination of tools. For complex tasks, you can break down the problem and use different tools step by step to solve it. After using each tool, clearly explain the execution results and suggest the next steps.
-
-If you want to stop the interaction at any point, use the `terminate` tool/function call.
+Analyze the previous results. Decide if you need more info or can proceed to the next step.
+If the task is finished, use `terminate`.
 """
 
 class BrowserContextHelper:
@@ -111,7 +123,9 @@ class ToolCallAgent(BaseModel):
     
     special_tool_names: List[str] = Field(default_factory=lambda: ["terminate"])
     tool_calls: List[ToolCall] = Field(default_factory=list)
-    _current_base64_image: Optional[str] = None
+    _current_base64_image: Optional[str] = PrivateAttr(default=None)
+    _console: Console = PrivateAttr(default_factory=Console)
+    final_answer: Optional[str] = None
 
     max_steps: int = 30
     current_step: int = 0
@@ -160,9 +174,18 @@ class ToolCallAgent(BaseModel):
                     )
                 ))
 
-        logger.info(f"✨ {self.name}'s thoughts: {content}")
+        # UI: Print thoughts in a subtle box
+        if content:
+             self._console.print(Panel(
+                 Text(content, style="italic"),
+                 title="[bold cyan]Suy nghi cua Manus[/bold cyan]",
+                 border_style="cyan",
+                 padding=(0, 2)
+             ))
+
         if self.tool_calls:
-             logger.info(f"🛠️ Selected {len(self.tool_calls)} tools: {[tc.function.name for tc in self.tool_calls]}")
+             tool_names = [tc.function.name for tc in self.tool_calls]
+             self._console.print(f"  [bold yellow]Su dung:[/bold yellow] [cyan]{', '.join(tool_names)}[/cyan]")
 
         # Add assistant message to memory
         if self.tool_calls:
@@ -195,7 +218,9 @@ class ToolCallAgent(BaseModel):
             # Execute
             result = await self.execute_tool(command)
             
-            logger.info(f"🎯 Tool '{command.function.name}' result: {str(result)[:100]}...")
+            # Subtly show tool completion
+            if command.function.name != "terminate":
+                 self._console.print(f"  [green]Done:[/green] [dim]Cong cu '{command.function.name}' hoan tat.[/dim]")
 
             # Add tool response
             tool_msg = Message.tool_message(
@@ -219,7 +244,12 @@ class ToolCallAgent(BaseModel):
         # Special handling for Terminate
         if name.lower() == "terminate":
             self.state = AgentState.FINISHED
-            return await self.available_tools.execute(name=name, tool_input=args)
+            res = await self.available_tools.execute(name=name, tool_input=args)
+            if isinstance(res, ToolResult):
+                 self.final_answer = res.output
+            else:
+                 self.final_answer = str(res)
+            return res
 
         result = await self.available_tools.execute(name=name, tool_input=args)
         
@@ -251,7 +281,7 @@ class ToolCallAgent(BaseModel):
 
 
 class ManusCompetition(ToolCallAgent):
-    name: str = "Manus-Củ-Sen"
+    name: str = "Manus-Cu-Sen"
     description: str = "The Supreme Agent"
 
     # Define tools
@@ -259,9 +289,12 @@ class ManusCompetition(ToolCallAgent):
         default_factory=lambda: ToolCollection(
             PythonTool(),
             BrowserUseTool(),
-            # TerminalTool(), # Optional, but PythonTool is safer/cleaner for logic. Terminal for filesystem.
             TerminalTool(),
             SearchTool(),
+            EditorTool(),
+            PlanningTool(),
+            AskHumanTool(),
+            KnowledgeTool(),
             Terminate()
         )
     )

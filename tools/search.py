@@ -2,10 +2,11 @@ from tavily import TavilyClient
 from config import settings
 from base_tool import BaseTool
 from loguru import logger
+import asyncio
 
 class SearchTool(BaseTool):
     name: str = "search_tool"
-    description: str = "Search the web for simple queries, checking facts, or news. DO NOT use this for navigating complex websites (YouTube, LinkedIn, etc) or extracting deep content - use 'browser_use' instead."
+    description: str = "Search the web for simple queries, checking facts, or news. Use 'browser_use' for deep navigation."
     parameters: dict = {
         "type": "object",
         "properties": {
@@ -15,19 +16,32 @@ class SearchTool(BaseTool):
     }
 
     async def execute(self, query: str) -> str:
-        if not settings.TAVILY_API_KEY:
-            return "Error: TAVILY_API_KEY not found."
-        
+        # Try Tavily first
+        if settings.TAVILY_API_KEY:
+            try:
+                client = TavilyClient(api_key=settings.TAVILY_API_KEY)
+                # Tavily search is synchronous, we run in thread if needed, 
+                # but simple call for now as this is CLI environment
+                response = client.search(query=query, search_depth="advanced")
+                results = []
+                for result in response.get('results', []):
+                    results.append(f"Title: {result.get('title')}\nURL: {result.get('url')}\nContent: {result.get('content')}\n")
+                if results:
+                    return "\n---\n".join(results)
+            except Exception as e:
+                logger.warning(f"Tavily search failed: {e}. Falling back to Google.")
+
+        # Fallback to Google Search (Free)
         try:
-            # Tavily client is synchronous, but we wrap it for the agent
-            client = TavilyClient(api_key=settings.TAVILY_API_KEY)
-            response = client.search(query=query, search_depth="advanced")
-            
+            from googlesearch import search
             results = []
-            for result in response.get('results', []):
-                results.append(f"Title: {result.get('title')}\nURL: {result.get('url')}\nContent: {result.get('content')}\n")
+            # googlesearch-python returns an iterator of strings
+            for url in search(query, num_results=5):
+                results.append(f"URL: {url}")
             
-            return "\n---\n".join(results) if results else "No results found."
+            if results:
+                return "Tavily search unavailable. Google Search Results:\n" + "\n".join(results)
+            return "No results found on Google or Tavily."
         except Exception as e:
-            logger.error(f"Search error: {e}")
-            return f"Error during search: {str(e)}"
+            logger.error(f"Google search fallback error: {e}")
+            return f"Error: All search providers failed. {str(e)}"

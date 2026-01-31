@@ -17,4 +17,4 @@ class Terminate(BaseTool):
     async def execute(self, answer: str) -> ToolResult:
         # The agent loop should check for this tool call and stop.
         # This execution just returns the answer.
-        return ToolResult(output=f"Task Completed. Final Answer: {answer}")
+        return ToolResult(output=answer)
