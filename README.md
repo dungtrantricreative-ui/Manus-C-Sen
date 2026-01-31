@@ -1,139 +1,114 @@
-# 🐉 Manus-Củ-Sen ULTIMATE (Core Edition)
+# 🐉 Manus-Củ-Sen ULTIMATE (Brain Transplant Edition)
 
-> **The Supreme Autonomous AI Agent Engine: Plan, Execute, Critic.**
+> **The Supreme Autonomous AI Agent Engine: Powered by OpenManus Logic, Vision Browsing, & Dynamic Context.**
 
-**Manus-Củ-Sen ULTIMATE** is not just an AI wrapper; it is a full-scale agentic brain designed for high-stakes automation. This project provides the most stable, cost-efficient, and professional-grade implementation of the "Plan-First" architecture.
+**Manus-Củ-Sen ULTIMATE** has completed a major "Brain Transplant" (Phase 11). It now runs on the core logic of the OpenManus project, enhanced with strict environment hardening. It features a vision-powered browser, dynamic "context-aware" prompting, and robust tool execution.
 
 ---
 
 ## 📖 Table of Contents
-1. [Project Vision](#-project-vision)
+1. [What's New (Phase 11)](#-whats-new-phase-11)
 2. [Internal Architecture](#-internal-architecture)
-3. [Core Robustness Features](#-core-robustness-features)
-4. [Master Tool Suite](#-master-tool-suite)
-5. [Advanced Configuration](#-advanced-configuration)
-6. [Developer's Guide](#-developers-guide)
-7. [Troubleshooting & FAQ](#-troubleshooting--faq)
+3. [Master Tool Suite](#-master-tool-suite)
+4. [Advanced Configuration](#-advanced-configuration)
+5. [Troubleshooting](#-troubleshooting)
 
 ---
 
-## 👁️ Project Vision
-The goal of **Manus-Củ-Sen** is to bridge the gap between "chatbots" and "autonomous agents." While most agents fail due to token limits, hallucinatory paths, or system errors, this engine is **hardened** to survive in real-world environments.
+## 🚀 What's New (Phase 11)
+
+### 1. Vision-Powered Browser (`browser-use`)
+The agent no longer guesses CSS selectors blindly. It now:
+- **Sees** the webpage using screenshots.
+- **Analyzes** interactive elements visually.
+- **Navigates** complex SPAs (Single Page Applications) like YouTube, Gmail, or Stock dashboards effortlessly.
+
+### 2. Context Injection ("The Eyes")
+Before every decision, the agent injects the **current browser state** (URL, Title, Screenshot) directly into its thinking process. It never gets "lost" or forgets which tab is open.
+
+### 3. Dynamic Prompting ("The Brain")
+The system prompt adapts in real-time:
+- **Browser Mode**: Activated when browsing, focusing on visual navigation.
+- **Coder Mode**: Activated when writing code, focusing on syntax and logic.
+
+### 4. Sandbox Python Execution
+New `PythonTool` allows the agent to execute Python code safely for calculations, data analysis, and logic verification.
 
 ---
 
 ## 🏗️ Internal Architecture
 
-The engine operates on a three-phase "Manus Cycle":
+The engine operates on the OpenManus "ToolCall" loop:
 
 ```mermaid
 graph TD
-    A[User Request] --> B{Planning Phase}
-    B -->|Create Roadmap| C[Execution Phase]
-    C -->|Run Tools| D{Critic Phase}
-    D -->|FEEDBACK| C
-    D -->|PROCEED| B
-    D -->|SUCCESS| E[Terminate & Answer]
+    A[Start Step] --> B{Browser Active?}
+    B -->|Yes| C[Capture Screenshot & DOM]
+    B -->|No| D[Standard Prompt]
+    C --> E[Inject Context into Prompt]
+    D --> E
+    E --> F[LLM Thinking (Vision-Aware)]
+    F -->|Tool Call| G[Execute Tool]
+    G --> A
 ```
 
 ### Key Modules:
-- **`agent_core.py`**: The Orchestrator. Manages the loop and LLM interactions.
-- **`schema.py`**: The Guardian. Validates data and sanitizes every single byte sent to the API.
-- **`base_tool.py`**: The Blueprint. Ensures every new capability follows a strict standard.
-- **`bug_hunter.py`**: The Simulacrum. Allows testing the entire engine without spending a single cent on API costs.
-
----
-
-## 🛡️ Core Robustness Features
-
-### 1. 🧼 Absolute Token Sanitization (Phase 9/10)
-Most modern LLMs occasionally leak internal control tokens (e.g., `<|end_header_id|>`). Strict API gateways (LiteLLM, OpenRouter) will crash with a **400 Bad Request** when these occur. 
-- **The Engine Solution**: Every incoming and outgoing message is passed through a regex-based sanitization layer that strips all known control tokens from Llama, ChatML, and GPT families.
-
-### 2. ✂️ Surgical Truncation (Phase 8)
-When a search result or a webpage contains 500k characters, most agents die.
-- **Our Solution**: We keep the **Top 4,000** and **Bottom 4,000** characters. 
-- **Why?** Important headers/titles are at the top; error messages and summaries are at the bottom. The middle is usually redundant noise.
-
-### 3. ⌨️ Auto-Quoting Terminal (Phase 8)
-Windows users often have paths like `D:\My Project\File.txt`. A standard agent might run `dir D:\My Project\File.txt`, which crashes.
-- **Our Solution**: The Terminal tool detects unquoted paths with spaces and automatically wraps them in `"` before execution.
+- **`agent_core.py`**: The new brain. Implements `ManusCompetition` agent and `BrowserContextHelper`.
+- **`tools/browser_use_tool.py`**: The vision-browser engine tailored for this agent.
+- **`llm.py`**: Decoupled LLM client handling failovers and tool calls.
+- **`schema.py`**: The Guardian. Validates data and sanitizes every single byte (Phase 10 Hardening).
 
 ---
 
 ## 🛠️ Master Tool Suite
 
-### 🌐 `browser` (The Vision Specialist)
-Utilizes Playwright and a specialized Vision model to interact with HTML just like a human.
-- **Special Action: `step`**: Instead of finding CSS selectors, the agent analyzes a screenshot and "decides" where to click.
-- **Parameters**: `action` (go_to_url, step, extract, click, type), `url`, `text`.
+### 🌐 `browser_use` (The New Standard)
+Interacts with the web using the `browser-use` library.
+- **Capabilities**: `go_to_url`, `click_element`, `input_text`, `scroll`, `extract_content`, `switch_tab`.
+- **Intelligence**: Automatically finds elements based on visual descriptions.
+
+### 🐍 `python_execute` (New!)
+Executes Python code in a sandboxed process.
+- **Use Case**: Math, string manipulation, data parsing, logic verification.
 
 ### 💻 `terminal` (System Integration)
 Executes native shell commands.
-- **MANDATORY**: Always use for verifying file existence before reading.
-- **Protocol**: Operates directly in your system environment (Python/Pip).
+- **Hardening**: Auto-quotes paths with spaces.
 
-### 🔍 `search_tool` (Real-time Intel)
-Powered by Tavily for deep, unfiltered web searching.
-- **Failover**: If results are vague, the **Critic** automatically triggers the `browser` for deeper research.
+### 🔍 `search` (Real-time Intel)
+Powered by Google/Tavily for deep web searching.
 
 ---
 
 ## ⚙️ Advanced Configuration
 
-All parameters are managed via `config.toml`:
+All parameters are managed via `config.toml` (same as before), but now supports the new modules.
 
-```toml
-[llm]
-api_key = "sk-..."
-model_name = "gpt-4o"
-base_url = "https://api.openai.com/v1"
-
-[[llm.backups]]
-name = "Gemini-Pro"
-model_name = "gemini-1.5-pro"
-api_key = "..."
-supports_tools = true
-
-[tools]
-tavily_api_key = "tvly-..."
+### Install Dependencies
+```bash
+pip install -r requirements.txt
+playwright install
 ```
 
-### 💰 Cost Optimization
-- **Critic Skipping**: Deterministic tools (Planning, Terminate) skip the expensive reflection phase.
-- **Compressed Media**: Screenshots for the browser tool are captured in JPEG 60% quality to minimize token usage for Vision models.
-
----
-
-## 👨‍💻 Developer's Guide
-
-### Adding a New Tool
-1. Create a new file in `tools/`.
-2. Inherit from `BaseTool`.
-3. Define `parameters` as a JSON Schema.
-4. Implement `async def execute()`.
-5. Register it in `main.py`.
-
-```python
-class MyTool(BaseTool):
-    name: str = "my_tool"
-    async def execute(self, arg1: str):
-        return f"Done: {arg1}"
+### Run the Agent
+```bash
+python main.py
 ```
+You will see the new "Manus-Củ-Sen ULTIMATE" banner.
 
 ---
 
-## ❓ Troubleshooting & FAQ
+## ❓ Troubleshooting
 
-**Q: I get a BadRequestError (400) from my provider.**
-A: This usually means the context is too large or contains illegal tokens. Check the logs (`loguru`) to see which message triggered it. Our Phase 10 hardening minimizes this to nearly zero.
+**Q: "NameError: name 'List' is not defined"**
+A: Fixed in the latest update of `base_tool.py`.
 
-**Q: The agent stops before finishing the job.**
-A: Ensure your plan is structured. The new **Phase 10 Protocol** forces the agent to follow through until the `terminate` call.
+**Q: Browser not opening?**
+A: Ensure you have run `playwright install`. The `browser-use` tool will try to launch a headful browser by default for you to see the action.
 
-**Q: Where are the libraries installed?**
-A: Since we removed the UV-forcing, they are installed directly into your active system Python environment.
+**Q: 400 Bad Request Errors?**
+A: Our Phase 10 "Absolute Sanitization" layer is still active, protecting the agent from token leakage even with the new brain.
 
 ---
 
-*"Manus-Củ-Sen: Built for stability. Designed for autonomy."*
+*"Manus-Củ-Sen: Now with the Brain of OpenManus and the Heart of Steel."*

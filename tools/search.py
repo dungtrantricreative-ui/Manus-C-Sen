@@ -5,7 +5,7 @@ from loguru import logger
 
 class SearchTool(BaseTool):
     name: str = "search_tool"
-    description: str = "Search the web for real-time information and news."
+    description: str = "Search the web for simple queries, checking facts, or news. DO NOT use this for navigating complex websites (YouTube, LinkedIn, etc) or extracting deep content - use 'browser_use' instead."
     parameters: dict = {
         "type": "object",
         "properties": {
