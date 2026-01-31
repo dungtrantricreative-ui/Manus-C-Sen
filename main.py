@@ -1,19 +1,24 @@
 import asyncio
 import sys
 from loguru import logger
+from rich.logging import RichHandler
+from rich.console import Console
+from rich.panel import Panel
 
 from agent_core import ManusCompetition
 from schema import Memory, Message, AgentState
 
 # Configure logger to output to stdout nicely
 logger.remove()
-logger.add(sys.stdout, format="<green>{time:HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{message}</cyan>", level="DEBUG")
+logger.add(RichHandler(rich_tracebacks=True, markup=True), format="{message}", level="INFO")
 
 async def main():
-    print("="*60)
-    print("🐲 Manus-Củ-Sen ULTIMATE (Brain Transplant Edition)")
-    print("   Powered by: Browser-Use, Vision Context, & Dynamic Prompts")
-    print("="*60)
+    console = Console()
+    console.print(Panel.fit(
+        "[bold green]🐲 Manus-Củ-Sen ULTIMATE[/bold green]\n[dim](Brain Transplant Edition)[/dim]\n\nPowered by: [cyan]Browser-Use[/cyan], [magenta]Vision Context[/magenta], & [yellow]Dynamic Prompts[/yellow]",
+        border_style="green",
+        title="Welcome"
+    ))
 
     # Initialize Memory
     memory = Memory()
