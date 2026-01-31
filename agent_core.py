@@ -63,10 +63,12 @@ class BrowserContextHelper:
         results_info = ""
 
         if browser_state and not browser_state.get("error"):
-            url_info = f"\\n   URL: {browser_state.get('url', 'N/A')}\\n   Title: {browser_state.get('title', 'N/A')}"
+            url = browser_state.get('url', 'N/A')
+            title = browser_state.get('title', 'N/A')
+            url_info = f"\n   URL: {url}\n   Title: {title}"
             tabs = browser_state.get("tabs", [])
             if tabs:
-                tabs_info = f"\\n   {len(tabs)} tab(s) available"
+                tabs_info = f"\n   {len(tabs)} tab(s) available"
             # Browser-use often provides extra pixels info
             
             if self._current_base64_image:
@@ -197,13 +199,13 @@ class ToolCallAgent(BaseModel):
 
             # Add tool response
             tool_msg = Message.tool_message(
-                content=str(result), # Ensure string
+                content=str(result),
                 tool_call_id=command.id,
                 name=command.function.name,
                 base64_image=self._current_base64_image
             )
             self.memory.add_message(tool_msg)
-            results.append(str(result))
+            results.append(f"Tool {command.function.name} executed.")
         
         return "\\n\\n".join(results)
 

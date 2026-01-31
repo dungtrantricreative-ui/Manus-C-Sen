@@ -80,11 +80,15 @@ Powered by Google/Tavily for deep web searching.
 
 ---
 
-## ⚙️ Advanced Configuration
+## ⚙️ Setup & Configuration
 
-All parameters are managed via `config.toml` (same as before), but now supports the new modules.
+### 1. Environment Variables
+Copy the `.env.example` file to `.env` and fill in your API keys:
+```bash
+cp .env.example .env
+```
 
-### Install Dependencies
+### 2. Install Dependencies
 ```bash
 pip install -r requirements.txt
 playwright install

@@ -1,27 +1,19 @@
 [llm]
-api_key = "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"
+api_key = "" # Set in .env as LLM_API_KEY
 model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
 vision_model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
 base_url = "https://api.groq.com/openai/v1"
 
 # Example: Groq backup (supports function calling)
-# [[llm.backups]]
-# name = "groq"
-# api_key = "gsk_..."
-# model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
-# base_url = "https://api.groq.com/openai/v1"
-# supports_tools = true
-
-# Example: Ollama (does NOT support function calling reliably)
-# [[llm.backups]]
-# name = "ollama"
-# api_key = "ollama"
-# model_name = "qwen3-vl:2b"
-# base_url = "http://localhost:11434/v1"
-# supports_tools = true  # ← Will be skipped automatically
+[[llm.backups]]
+name = "groq"
+api_key = "" # Set in .env as BACKUP_GROQ_API_KEY
+model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
+base_url = "https://api.groq.com/openai/v1"
+supports_tools = true
 
 [tools]
-tavily_api_key = "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"
+tavily_api_key = "" # Set in .env as TAVILY_API_KEY
 enabled = ["search", "memory", "file_ops", "calculator", "scraper", "python_repl", "browser", "ask_human", "terminal"]
 
 [agent]
@@ -30,7 +22,7 @@ name = "Manus-Củ-Sen"
 
 [cache]
 enabled = true
-ttl_seconds = 600  # 10 minutes - reduce duplicate calls
+ttl_seconds = 600
 
 [memory]
 file_path = "memory.json"
