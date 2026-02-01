@@ -5,31 +5,53 @@ model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
 vision_model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
 base_url = "https://api.groq.com/openai/v1"
 
-# Example: Groq backup (supports function calling)
+# --- BACKUP ACCOUNT POOL ---
+
 [[llm.backups]]
-name = "groq"
+name = "groq_primary_backup"
 api_key = "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"
 model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
 base_url = "https://api.groq.com/openai/v1"
 supports_tools = true
 
 [[llm.backups]]
-name = "sambanova"
+name = "groq_new_quota"
+api_key = "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"
+model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
+base_url = "https://api.groq.com/openai/v1"
+supports_tools = true
+
+[[llm.backups]]
+name = "sambanova_old"
 api_key = "74a9bc78-8f70-495d-ac96-22b3589837b4"
 model_name = "Llama-4-Maverick-17B-128E-Instruct"
 base_url = "https://api.sambanova.ai/v1"
 supports_tools = true
 
 [[llm.backups]]
-name = "sambanova_alt"
+name = "sambanova_new"
+api_key = "283fe5e6-bc89-4daa-aa08-272258b8d5b3"
+model_name = "Llama-4-Maverick-17B-128E-Instruct"
+base_url = "https://api.sambanova.ai/v1"
+supports_tools = true
+
+[[llm.backups]]
+name = "sambanova_secondary"
 api_key = "a670faaf-cb47-46c8-a45b-29ef7467143e"
 model_name = "Llama-4-Maverick-17B-128E-Instruct"
 base_url = "https://api.sambanova.ai/v1"
 supports_tools = true
 
 [[llm.backups]]
-name = "cerebras"
+name = "cerebras_old"
 api_key = "csk-vdmwee9e6kpmpyxdcfkvrxrcyhekh5w6vk39nwfc9wxmpkhk"
+model_name = "gpt-oss-120b"
+base_url = "https://api.cerebras.ai/v1"
+supports_tools = true
+
+[[llm.backups]]
+name = "cerebras_new"
+api_key = "csk-5jn2kxh2nnrp2x46xfwetnkttrcetcfrxp29mvrv5d9dxtjf"
 model_name = "gpt-oss-120b"
 base_url = "https://api.cerebras.ai/v1"
 supports_tools = true
