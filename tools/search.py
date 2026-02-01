@@ -20,33 +20,48 @@ class SearchTool(BaseTool):
         "required": ["query"]
     }
 
-    async def execute(self, query: str) -> str:
-        # Try Tavily first
+    async def execute(self, query: str = "", **kwargs) -> str:
+        # Resilient argument handling
+        query = query or kwargs.get("text") or kwargs.get("input") or ""
+        if not query:
+            return "Error: No search query provided."
+        
+        results = []
+        
+        # 1. Try Tavily (Advanced)
         if settings.TAVILY_API_KEY:
             try:
                 client = TavilyClient(api_key=settings.TAVILY_API_KEY)
-                # Tavily search is synchronous, we run in thread if needed, 
-                # but simple call for now as this is CLI environment
                 response = client.search(query=query, search_depth="advanced")
-                results = []
                 for result in response.get('results', []):
-                    results.append(f"Title: {result.get('title')}\nURL: {result.get('url')}\nContent: {result.get('content')}\n")
+                    results.append(f"Title: {result.get('title')}\nSource: {result.get('url')}\nSnippets: {result.get('content')}\n")
                 if results:
-                    return "\n---\n".join(results)
+                    return "--- Tavily Results ---\n" + "\n".join(results)
             except Exception as e:
-                logger.warning(f"Tavily search failed: {e}. Falling back to Google.")
+                logger.debug(f"Tavily failed: {e}")
 
-        # Fallback to Google Search (Free)
+        # 2. Try DuckDuckGo (Resilient)
+        try:
+            from duckduckgo_search import DDGS
+            with DDGS() as ddgs:
+                ddg_results = ddgs.text(query, max_results=5)
+                for r in ddg_results:
+                    results.append(f"Title: {r.get('title')}\nSource: {r.get('href')}\nSnippets: {r.get('body')}\n")
+                if results:
+                    return "--- DuckDuckGo Results ---\n" + "\n".join(results)
+        except Exception as e:
+            logger.debug(f"DuckDuckGo failed: {e}")
+
+        # 3. Fallback to Google Search (Free)
         try:
             from googlesearch import search
-            results = []
-            # googlesearch-python returns an iterator of strings
+            google_results = []
             for url in search(query, num_results=5):
-                results.append(f"URL: {url}")
+                google_results.append(f"URL: {url}")
             
-            if results:
-                return "Tavily search unavailable. Google Search Results:\n" + "\n".join(results)
-            return "No results found on Google or Tavily."
+            if google_results:
+                return "--- Google Results ---\n" + "\n".join(google_results)
         except Exception as e:
-            logger.error(f"Google search fallback error: {e}")
-            return f"Error: All search providers failed. {str(e)}"
+            logger.debug(f"Google failed: {e}")
+
+        return "Error: No results found after trying all search providers."

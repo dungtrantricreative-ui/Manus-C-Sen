@@ -51,19 +51,18 @@ class TerminalTool(BaseTool):
         try:
             command = command.strip()
             
-            # Auto-ensure outputs directory exists for common operations
+            # Auto-ensure outputs directory
             if "outputs/" in command or "outputs\\" in command:
                 os.makedirs("outputs", exist_ok=True)
             
-            # Determine working directory
             cwd = working_dir or os.getcwd()
             
-            # Use appropriate shell based on OS
             if platform.system() == "Windows":
-                # PowerShell for better Windows compatibility
-                # Escape for PowerShell
-                safe_command = command.replace('"', '`"')
-                shell_cmd = f'powershell -NoProfile -ExecutionPolicy Bypass -Command "{safe_command}"'
+                # Robust PowerShell execution: Base64 encoding prevents quote/escaping issues
+                import base64
+                # We wrap the command in a script block to handle multiline and complex logic
+                encoded_cmd = base64.b64encode(command.encode('utf-16-le')).decode('ascii')
+                shell_cmd = f'powershell -NoProfile -ExecutionPolicy Bypass -EncodedCommand {encoded_cmd}'
             else:
                 shell_cmd = command
 
@@ -81,35 +80,27 @@ class TerminalTool(BaseTool):
                 )
             except asyncio.TimeoutError:
                 process.kill()
-                return f"Command timed out after {timeout} seconds. Consider breaking into smaller steps."
+                return f"Timeout after {timeout}s."
             
             output = stdout.decode(errors='replace').strip()
             error = stderr.decode(errors='replace').strip()
             
             result = []
             if output:
-                # Truncate very long outputs
-                if len(output) > 5000:
-                    output = output[:5000] + "\n... [OUTPUT TRUNCATED]"
-                result.append(f"STDOUT:\n{output}")
+                if len(output) > 3000:
+                    output = output[:3000] + "\n... [TRUNCATED]"
+                result.append(output)
             if error:
-                if len(error) > 2000:
-                    error = error[:2000] + "\n... [ERROR TRUNCATED]"
-                result.append(f"STDERR:\n{error}")
+                if len(error) > 1000:
+                    error = error[:1000] + "\n... [TRUNCATED]"
+                result.append(f"STDERR: {error}")
             
             exit_code = process.returncode
-            
             if not result:
-                res_str = f"✅ Command executed successfully (no output). Exit code: {exit_code}"
-            else:
-                status = "✅" if exit_code == 0 else "⚠️"
-                res_str = f"{status} Exit code: {exit_code}\n\n" + "\n\n".join(result)
+                return f"Done (Code {exit_code})"
             
-            # Publish to UI
-            await EventBus.publish("terminal", res_str)
-            return res_str
+            status = "Success" if exit_code == 0 else "Error"
+            return f"{status} (Code {exit_code}): " + " | ".join(result)
             
         except Exception as e:
-            err_msg = f"❌ Error executing command: {str(e)}\nTry a different approach or simpler command."
-            await EventBus.publish("terminal", err_msg)
-            return err_msg
+            return f"Terminal failure: {str(e)}"

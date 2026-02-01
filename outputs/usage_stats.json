@@ -28,12 +28,194 @@
       "estimated_cost_usd": 0.0,
       "by_provider": {},
       "session_start": "2026-02-01T12:28:52.365064"
+    },
+    {
+      "total_input_tokens": 48655,
+      "total_output_tokens": 1084,
+      "total_requests": 13,
+      "estimated_cost_usd": 0.05082300000000001,
+      "by_provider": {
+        "sambanova_new": {
+          "input_tokens": 20651,
+          "output_tokens": 398,
+          "requests": 5,
+          "cost_usd": 0.021447
+        },
+        "sambanova_secondary": {
+          "input_tokens": 27049,
+          "output_tokens": 392,
+          "requests": 6,
+          "cost_usd": 0.027833
+        },
+        "primary": {
+          "input_tokens": 955,
+          "output_tokens": 294,
+          "requests": 2,
+          "cost_usd": 0.001543
+        }
+      },
+      "session_start": "2026-02-01T12:40:42.473171"
+    },
+    {
+      "total_input_tokens": 39685,
+      "total_output_tokens": 894,
+      "total_requests": 10,
+      "estimated_cost_usd": 0.041472999999999996,
+      "by_provider": {
+        "sambanova_secondary": {
+          "input_tokens": 39177,
+          "output_tokens": 751,
+          "requests": 9,
+          "cost_usd": 0.040679
+        },
+        "primary": {
+          "input_tokens": 508,
+          "output_tokens": 143,
+          "requests": 1,
+          "cost_usd": 0.000794
+        }
+      },
+      "session_start": "2026-02-01T12:46:00.585722"
+    },
+    {
+      "total_input_tokens": 0,
+      "total_output_tokens": 0,
+      "total_requests": 0,
+      "estimated_cost_usd": 0.0,
+      "by_provider": {},
+      "session_start": "2026-02-01T12:52:02.786001"
+    },
+    {
+      "total_input_tokens": 49640,
+      "total_output_tokens": 750,
+      "total_requests": 7,
+      "estimated_cost_usd": 0.05114,
+      "by_provider": {
+        "cerebras_old": {
+          "input_tokens": 4623,
+          "output_tokens": 442,
+          "requests": 2,
+          "cost_usd": 0.005507
+        },
+        "groq_new_quota": {
+          "input_tokens": 3224,
+          "output_tokens": 133,
+          "requests": 1,
+          "cost_usd": 0.00349
+        },
+        "sambanova_old": {
+          "input_tokens": 31115,
+          "output_tokens": 141,
+          "requests": 3,
+          "cost_usd": 0.031397
+        },
+        "sambanova_new": {
+          "input_tokens": 10678,
+          "output_tokens": 34,
+          "requests": 1,
+          "cost_usd": 0.010746
+        }
+      },
+      "session_start": "2026-02-01T12:51:14.540575"
+    },
+    {
+      "total_input_tokens": 56722,
+      "total_output_tokens": 1077,
+      "total_requests": 12,
+      "estimated_cost_usd": 0.058876,
+      "by_provider": {
+        "sambanova_secondary": {
+          "input_tokens": 7218,
+          "output_tokens": 85,
+          "requests": 2,
+          "cost_usd": 0.007388
+        },
+        "groq_new_quota": {
+          "input_tokens": 10278,
+          "output_tokens": 171,
+          "requests": 3,
+          "cost_usd": 0.010620000000000001
+        },
+        "cerebras_old": {
+          "input_tokens": 17875,
+          "output_tokens": 603,
+          "requests": 4,
+          "cost_usd": 0.019081
+        },
+        "primary": {
+          "input_tokens": 334,
+          "output_tokens": 129,
+          "requests": 1,
+          "cost_usd": 0.000592
+        },
+        "sambanova_old": {
+          "input_tokens": 21017,
+          "output_tokens": 89,
+          "requests": 2,
+          "cost_usd": 0.021195
+        }
+      },
+      "session_start": "2026-02-01T12:50:02.313743"
+    },
+    {
+      "total_input_tokens": 67691,
+      "total_output_tokens": 2442,
+      "total_requests": 8,
+      "estimated_cost_usd": 0.072575,
+      "by_provider": {
+        "cerebras_old": {
+          "input_tokens": 6966,
+          "output_tokens": 530,
+          "requests": 3,
+          "cost_usd": 0.008026
+        },
+        "sambanova_new": {
+          "input_tokens": 60171,
+          "output_tokens": 1776,
+          "requests": 4,
+          "cost_usd": 0.063723
+        },
+        "primary": {
+          "input_tokens": 554,
+          "output_tokens": 136,
+          "requests": 1,
+          "cost_usd": 0.000826
+        }
+      },
+      "session_start": "2026-02-01T12:54:34.467779"
+    },
+    {
+      "total_input_tokens": 30932,
+      "total_output_tokens": 1977,
+      "total_requests": 11,
+      "estimated_cost_usd": 0.034886,
+      "by_provider": {
+        "cerebras_old": {
+          "input_tokens": 22941,
+          "output_tokens": 1661,
+          "requests": 8,
+          "cost_usd": 0.026263
+        },
+        "groq_new_quota": {
+          "input_tokens": 7390,
+          "output_tokens": 170,
+          "requests": 2,
+          "cost_usd": 0.00773
+        },
+        "primary": {
+          "input_tokens": 601,
+          "output_tokens": 146,
+          "requests": 1,
+          "cost_usd": 0.000893
+        }
+      },
+      "session_start": "2026-02-01T13:00:15.456003"
     }
   ],
   "cumulative": {
-    "total_input_tokens": 15627,
-    "total_output_tokens": 766,
-    "total_requests": 4,
-    "total_cost_usd": 0.017159
+    "total_input_tokens": 308952,
+    "total_output_tokens": 8990,
+    "total_requests": 65,
+    "total_cost_usd": 0.326932
   }
 }

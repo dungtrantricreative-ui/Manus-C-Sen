@@ -178,7 +178,7 @@ class LLM:
         self.cache = ResponseCache()
 
         if self.backup_clients and LLM._instances_count < 1:
-            logger.success(f"⚡ FUSION: {len(self.backup_clients)} backup networks available.")
+            logger.debug(f"⚡ FUSION: {len(self.backup_clients)} backup networks available.")
         
         LLM._instances_count += 1
 
@@ -267,7 +267,6 @@ class LLM:
         if settings.cache.enabled:
             cached = self.cache.get(msg_dicts, tools)
             if cached:
-                logger.success("🚀 Performance: Response served from cache.")
                 return cached
         
         try:
@@ -295,7 +294,7 @@ class LLM:
             # PHASE 12: Cost-Aware Failover (Clients are already added in sequence)
             for b in self.backup_clients:
                 try:
-                    logger.success(f"🔄 Failover: Switching to {b['name']}...")
+                    logger.debug(f"🔄 Failover: Switching to {b['name']}...")
                     msg_dicts_backup = self._prepare_messages(messages, b['model'])
                     response = await b['client'].chat.completions.create(
                         model=b['model'],

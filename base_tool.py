@@ -60,7 +60,9 @@ class ToolCollection:
             return ToolResult(error=f"Tool {name} is invalid")
         try:
             result = await tool.execute(**(tool_input or {}))
-            return result
+            if isinstance(result, ToolResult):
+                return result
+            return ToolResult(output=result)
         except Exception as e:
             return ToolResult(error=str(e))
 

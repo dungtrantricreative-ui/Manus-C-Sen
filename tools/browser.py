@@ -68,7 +68,16 @@ class BrowserTool(BaseTool):
             if action == "go_to_url":
                 if not url: return "Error: URL missing"
                 if not url.startswith("http"): url = "https://" + url
-                await self._page.goto(url, wait_until="networkidle", timeout=30000)
+                
+                # Optimized for speed and anti-bot: don't wait for networkidle (too slow/blocked)
+                try:
+                    await self._page.goto(url, wait_until="domcontentloaded", timeout=20000)
+                except:
+                    # Fallback if domcontentloaded fails
+                    await self._page.goto(url, wait_until="commit", timeout=10000)
+                
+                # Small human-like pause
+                await asyncio.sleep(1)
                 await EventBus.publish("browser_view", await self.get_screenshot_base64())
                 return f"Navigated to {url}. Title: {await self._page.title()}"
 
@@ -149,9 +158,13 @@ class BrowserTool(BaseTool):
                 return f"Scrolled {direction}."
 
             if action == "extract":
+                # Ensure we wait a bit for dynamic content
+                await asyncio.sleep(2)
                 content = await self._page.content()
                 md = markdownify.markdownify(content, heading_style="ATX")
-                return f"URL: {self._page.url}\nCONTENT:\n{md[:10000]}"
+                # Remove extra noise from common lyric sites
+                clean_md = md.replace("\n\n\n", "\n").replace("Toggle navigation", "")
+                return f"URL: {self._page.url}\nCONTENT:\n{clean_md[:10000]}"
 
             # Manual override interactions (click, type)
             # Manual override interactions (click, type, or by index)

@@ -85,7 +85,7 @@ class Memory(BaseModel):
             return
 
         from loguru import logger
-        logger.success(f"🧠 Performance: Optimizing context ({num_to_summarize} messages)...")
+        logger.debug(f"🧠 Performance: Optimizing context ({num_to_summarize} messages)...")
         
         system_prompt = self.messages[0] if self.messages[0].role == Role.SYSTEM else None
         start_idx = 1 if system_prompt else 0
@@ -109,7 +109,7 @@ class Memory(BaseModel):
                 new_messages.extend(self.messages[start_idx + num_to_summarize:])
                 
                 self.messages = new_messages
-                logger.success("✅ Context optimized.")
+                logger.debug("✅ Context optimized.")
         except Exception as e:
             logger.warning(f"Failed to summarize context: {e}")
 

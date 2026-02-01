@@ -171,13 +171,13 @@ class ToolCallAgent(BaseModel):
         assistant_msg = Message.assistant_message(content=content, tool_calls=tool_calls if tool_calls else None)
         self.memory.add_message(assistant_msg)
 
-        # UI: Thought Visualization
+        # UI: Ghost Thinking (No Icons)
         if content:
-             self._console.print(Panel(Text(content, style="italic"), title="🧠 Thinking", border_style="cyan"))
+             self._console.print(f"\n[dim]* Thinking:[/dim] {content}")
 
         if tool_calls:
              tool_names = [tc.function.name for tc in tool_calls]
-             self._console.print(f"  [bold yellow]Action:[/bold yellow] [cyan]{', '.join(tool_names)}[/cyan]")
+             self._console.print(f" [cyan]> Action:[/cyan] [bold white]{', '.join(tool_names)}[/bold white]")
              return True
         
         return False
@@ -192,14 +192,13 @@ class ToolCallAgent(BaseModel):
         for tc in last_msg.tool_calls:
             result = await self.execute_tool(tc)
             
-            # PHASE 12: Show results in UI
+            # UI: Results (Snippet)
             output_str = str(result.output if hasattr(result, "output") else result)
-            # Filter out empty or technical messages for cleaner UI
             if output_str and len(output_str) > 2:
-                snippet = output_str[:150].replace("\n", " ") + ("..." if len(output_str) > 150 else "")
-                self._console.print(f"  ✅ [bold green]{tc.function.name}:[/bold green] [white]{snippet}[/white]")
+                snippet = output_str[:120].replace("\n", " ").strip() + ("..." if len(output_str) > 120 else "")
+                self._console.print(f" [green]> Result:[/green] [dim]{snippet}[/dim]")
             else:
-                self._console.print(f"  ✅ [green]{tc.function.name} finished (no output).[/green]")
+                self._console.print(f" [green]> Result:[/green] [dim]Done.[/dim]")
 
             # Add tool result to memory
             tool_msg = Message.tool_message(

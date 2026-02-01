@@ -6,13 +6,16 @@ from loguru import logger
 # 1. SILENCE NOISY LOGS IMMEDIATELY (Before any other imports)
 logger.remove()
 from rich.logging import RichHandler
-logger.add(RichHandler(rich_tracebacks=True, markup=True), format="[dim]{time:HH:mm:ss}[/dim] {message}", level="SUCCESS")
+# GHOST MODE: No level names, no timestamps, just the message
+logger.add(RichHandler(show_time=False, show_level=False, markup=True), level="SUCCESS")
 
 # Set levels for standard logging
 logging.getLogger("browser_use").setLevel(logging.CRITICAL)
 logging.getLogger("httpx").setLevel(logging.CRITICAL)
 logging.getLogger("openai").setLevel(logging.CRITICAL)
 logging.getLogger("urllib3").setLevel(logging.CRITICAL)
+logging.getLogger("httpcore").setLevel(logging.CRITICAL)
+logging.getLogger("anyio").setLevel(logging.CRITICAL)
 
 # Prevent browser_use from configuring its own logging if it hasn't already
 os.environ["BROWSER_USE_LOGGING_LEVEL"] = "CRITICAL"
@@ -29,7 +32,7 @@ async def main():
     console.print(Panel.fit(
         "[bold green]Manus-Cu-Sen ULTIMATE[/bold green]\n[dim](Brain Transplant Edition)[/dim]\n\nPowered by: [cyan]Browser-Use[/cyan], [magenta]Vision Context[/magenta], & [yellow]Dynamic Prompts[/yellow]",
         border_style="green",
-        title="Welcome"
+        padding=(1, 2)
     ))
 
     # Initialize Memory
@@ -89,4 +92,11 @@ async def main():
         print("\nGoodbye!")
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, asyncio.CancelledError):
+        print("\n[dim]Interrupted by user. Cleaning up...[/dim]")
+        sys.exit(0)
+    except Exception as e:
+        logger.debug(f"Unhandled error: {e}")
+        sys.exit(1)

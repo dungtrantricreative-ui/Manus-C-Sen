@@ -13,3 +13,4 @@ googlesearch-python>=1.2.0
 langchain-openai>=0.0.5
 langchain>=0.1.0
 rich>=13.0.0
+duckduckgo-search>=7.0.0
