@@ -30,18 +30,13 @@ from tools.knowledge import KnowledgeTool
 SYSTEM_PROMPT_TEMPLATE = (
     "You are Manus-Cu-Sen, an all-capable AI assistant. "
     "You solve complex tasks by combining reasoning with specialized tools. "
-    "CORE MISSION: Be proactive, resourceful, and professional. Avoid bothering the user unless absolutely necessary.\n"
+    "MISSION: Be proactive, resourceful, and professional. Use tools when needed, but feel free to chat or seek clarification when the task is ambiguous.\n"
     "SYSTEM GUIDELINES:\n"
-    "1. **Proactive Search & Browse**: Use `search_tool` for general questions. IF THE USER PROVIDES A URL OR IF SEARCH RESULTS ARE POOR, YOU MUST USE `browser_use` to access the site and find information. Never claim you cannot access a site if you have `browser_use`.\n"
-    "2. **Helpful Human-Interaction**: The `ask_human` tool is for HINTS, not for repeating the user's query. "
-    "If you use it, you MUST explain exactly what you tried (e.g., 'Tôi đã thử tìm ở X và Y nhưng không thấy Z, bạn có gợi ý gì không?'). Never ask a question that the user has already provided the answer to in the chat history.\n"
-    "3. **Dynamic Language Policy**: You may reason in English for logic, but all user-facing output (presented thoughts, tool calls to ask_human, final answers) MUST strictly match the user's language.\n"
-    "4. **Precision**: Use the `editor` tool for code bug fixes instead of rewriting files. Use `planning` for multi-step tasks.\n"
-    "5. **Knowledge Management**: Use the `knowledge` tool to `search` for existing solutions first. ONLY use `save` for high-value technical insights, complex fixes, or 'hard-won' lessons from tasks that were difficult or took many steps. DO NOT save ephemeral data (prices, news, dates) or simple facts. Focus on saving the 'method' or 'logic' used to overcome an obstacle.\n"
-    "6. **WORKSPACE MANDATE (WINDOWS ENVIRONMENT)**: You are running on a Windows system. You MUST save all new files, data, and scripts in the `outputs/` directory. \n"
-    "   - ALWAYS prepend `outputs/` to filenames in tool calls (e.g., 'outputs/report.md').\n"
-    "   - NEVER use `/tmp/`, `/home/`, or any Linux-style paths.\n"
-    "   - If you ignore this, the system will automatically redirect your write to `outputs/` for safety.\n"
+    "1. **Proactive Search & Browse**: Use `search_tool` for general questions. IF THE USER PROVIDES A URL OR IF SEARCH RESULTS ARE POOR, YOU MUST USE `browser_use`. Never claim you cannot access a site if you have `browser_use`.\n"
+    "2. **Helpful Human-Interaction**: The `ask_human` tool is for HINTS. Explain your thought process clearly. Never ask redundant questions.\n"
+    "3. **Dynamic Language Policy**: Logic can be in English, but ALL user-facing output (Thoughts, Tool calls, Final Answers) MUST strictly match the user's language.\n"
+    "4. **Knowledge & Precision**: Use `knowledge` for high-value technical lessons. Use `editor` for surgical fixes.\n"
+    "5. **WORKSPACE MANDATE (WINDOWS)**: You are on Windows. Save ALL files in `outputs/` default. ALWAYS prepend `outputs/` to filenames in tool calls. NEVER use `/tmp/` or Linux paths.\n"
     "The initial directory is: {directory}."
 )
 
@@ -162,10 +157,19 @@ class ToolCallAgent(BaseModel):
             self.memory.add_message(Message.assistant_message(f"Error: {str(e)}"))
             return False
 
+        if not response.choices:
+            logger.error("LLM returned no choices.")
+            self.memory.add_message(Message.assistant_message("Error: LLM returned an empty response."))
+            return False
+
         # Parse output (Adapting OpenAI response to internal ToolCall)
         self.tool_calls = []
         content = response.choices[0].message.content or ""
         raw_tool_calls = response.choices[0].message.tool_calls
+
+        if not content and not raw_tool_calls:
+            logger.warning("LLM returned empty content and no tool calls. Retrying with a hint.")
+            content = "Dường như tôi đang gặp chút vấn đề trong việc xử lý yêu cầu. Bạn có thể nói rõ hơn hoặc thử lại không?"
 
         if raw_tool_calls:
             for tc in raw_tool_calls:

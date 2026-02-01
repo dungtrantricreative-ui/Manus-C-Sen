@@ -13,6 +13,27 @@ model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
 base_url = "https://api.groq.com/openai/v1"
 supports_tools = true
 
+[[llm.backups]]
+name = "sambanova"
+api_key = "74a9bc78-8f70-495d-ac96-22b3589837b4"
+model_name = "Llama-4-Maverick-17B-128E-Instruct"
+base_url = "https://api.sambanova.ai/v1"
+supports_tools = true
+
+[[llm.backups]]
+name = "sambanova_alt"
+api_key = "a670faaf-cb47-46c8-a45b-29ef7467143e"
+model_name = "Llama-4-Maverick-17B-128E-Instruct"
+base_url = "https://api.sambanova.ai/v1"
+supports_tools = true
+
+[[llm.backups]]
+name = "cerebras"
+api_key = "csk-vdmwee9e6kpmpyxdcfkvrxrcyhekh5w6vk39nwfc9wxmpkhk"
+model_name = "gpt-oss-120b"
+base_url = "https://api.cerebras.ai/v1"
+supports_tools = true
+
 [tools]
 tavily_api_key = "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"
 enabled = ["search", "memory", "file_ops", "calculator", "scraper", "python_repl", "browser", "ask_human", "terminal", "editor", "planning", "knowledge"]
