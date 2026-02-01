@@ -219,8 +219,7 @@ class LLM:
             msg_dicts.append(d)
         return msg_dicts
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2, min=5, max=15))
-    async def ask_tool_stream(self, messages: List[Any], tools: List[dict], model: Optional[str] = None) -> AsyncGenerator[Dict[str, Any], None]:
+    async def ask_tool_stream(self, messages: List[Any], tools: List[dict], tool_choice: str = "auto", model: Optional[str] = None) -> AsyncGenerator[Any, None]:
         target_model = model or settings.MODEL_NAME
         msg_dicts = self._prepare_messages(messages, target_model)
 
@@ -229,7 +228,7 @@ class LLM:
                 model=target_model,
                 messages=msg_dicts,
                 tools=tools,
-                tool_choice="auto",
+                tool_choice=tool_choice,
                 stream=True
             )
             async for chunk in response:
@@ -248,7 +247,7 @@ class LLM:
                     model=b['model'],
                     messages=msg_dicts_backup,
                     tools=tools,
-                    tool_choice="auto",
+                    tool_choice=tool_choice,
                     stream=True
                 )
                 async for chunk in response:

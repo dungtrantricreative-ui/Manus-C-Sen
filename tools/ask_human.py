@@ -4,7 +4,7 @@ from base_tool import BaseTool
 
 class AskHumanTool(BaseTool):
     name: str = "ask_human"
-    description: str = "Ask the human user for clarification, permission, or help when you are stuck or need specific information."
+    description: str = "LAST RESORT ONLY. Ask the human user for high-risk PERMISSION or CRITICAL CLARIFICATION that cannot be found via search. DO NOT use for general info or search-related tasks."
     parameters: dict = {
         "type": "object",
         "properties": {

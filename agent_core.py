@@ -139,41 +139,68 @@ class ToolCallAgent(BaseModel):
              # TRIGGER PHASE 12: Context Pruning
              await self.memory.summarize(self.llm)
              
-             self.memory.add_message(Message.user_message(effective_prompt))
+             # Create a transient message list for the LLM call instead of permanently growing memory with same prompts
+             messages = self.memory.to_dict_list()
+             messages.append({"role": "user", "content": effective_prompt})
+        else:
+             messages = self.memory.to_dict_list()
 
+        full_content = ""
+        tool_calls_reconstructed = {} # Dict to hold reconstructed tool calls
+        
         try:
-            response = await self.llm.ask_tool(
-                messages=self.memory.to_dict_list(),
-                tools=self.available_tools.to_params(),
-                tool_choice=self.tool_choices,
-            )
+             self._console.print("\n[dim]* Thinking:[/dim]", end=" ")
+             with Live(Text("", style="dim"), console=self._console, refresh_per_second=10) as live:
+                 async for chunk in self.llm.ask_tool_stream(
+                     messages=messages,
+                     tools=self.available_tools.to_params(),
+                     tool_choice=self.tool_choices,
+                 ):
+                     if not chunk.choices:
+                         continue
+                     
+                     delta = chunk.choices[0].delta
+                     
+                     # 1. Handle Content (Reasoning)
+                     if delta.content:
+                         chunk_text = delta.content
+                         # Filter out repetitive thinking headers if they appear in stream
+                         if full_content == "" and ("* Thinking:" in chunk_text or "Thinking:" in chunk_text):
+                             chunk_text = chunk_text.replace("* Thinking:", "").replace("Thinking:", "").strip()
+                         
+                         full_content += chunk_text
+                         live.update(Text(full_content, style="dim"))
+                     
+                     # 2. Handle Tool Calls
+                     if delta.tool_calls:
+                         for tc_delta in delta.tool_calls:
+                             if tc_delta.index not in tool_calls_reconstructed:
+                                 tool_calls_reconstructed[tc_delta.index] = {
+                                     "id": tc_delta.id,
+                                     "name": tc_delta.function.name if tc_delta.function else "",
+                                     "arguments": ""
+                                 }
+                             
+                             if tc_delta.function and tc_delta.function.arguments:
+                                 tool_calls_reconstructed[tc_delta.index]["arguments"] += tc_delta.function.arguments
+
         except Exception as e:
             logger.success(f"❌ [bold red]LLM failure:[/bold red] {str(e)[:100]}")
             return False
 
-        if not response.choices:
-            return False
-
-        assistant_msg_raw = response.choices[0].message
-        content = assistant_msg_raw.content or ""
-        
-        # Parse tool calls using the new schema
+        # Parse reconstructed tool calls using the schema
         tool_calls = []
-        if assistant_msg_raw.tool_calls:
-            for tc in assistant_msg_raw.tool_calls:
+        for tc_data in tool_calls_reconstructed.values():
+            if tc_data["name"]: # Ensure name is present
                 tool_calls.append(ToolCall(
-                    id=tc.id,
-                    type=tc.type,
-                    function=Function(name=tc.function.name, arguments=tc.function.arguments)
+                    id=tc_data["id"],
+                    type="function",
+                    function=Function(name=tc_data["name"], arguments=tc_data["arguments"])
                 ))
 
         # Add assistant message to memory
-        assistant_msg = Message.assistant_message(content=content, tool_calls=tool_calls if tool_calls else None)
+        assistant_msg = Message.assistant_message(content=full_content, tool_calls=tool_calls if tool_calls else None)
         self.memory.add_message(assistant_msg)
-
-        # UI: Ghost Thinking (No Icons)
-        if content:
-             self._console.print(f"\n[dim]* Thinking:[/dim] {content}")
 
         if tool_calls:
              tool_names = [tc.function.name for tc in tool_calls]

@@ -3,19 +3,21 @@ from config import settings
 from base_tool import BaseTool
 from loguru import logger
 import asyncio
+from duckduckgo_search import DDGS
 
 class SearchTool(BaseTool):
     name: str = "search_tool"
-    description: str = "Search the web for simple queries, checking facts, or news. Use 'browser_use' for deep navigation."
+    description: str = "Perform a web search. The primary interface for external knowledge."
     instructions: str = """
-1. **QUICK FACTS**: Use this tool for facts, dates, news, or finding URLs.
-2. **NO DOWNLOAD**: This tool cannot download files. Use Terminal for that.
-3. **BRIDGE**: Use this tool to find the right URL, then switch to `browser_use` for deep reading.
+1. **QUERY STRATEGY**: If a query fails, simplify it. Don't use natural language questions; use keywords.
+2. **FALLBACK**: This tool automatically tries multiple providers (Tavily -> DuckDuckGo -> Google).
+3. **NEXT STEP**: After searching, use `scraper` on the most promising URLs found.
+4. **LIMITS**: Returns max 5-10 results. Read snippets carefully before scraping.
 """
     parameters: dict = {
         "type": "object",
         "properties": {
-            "query": {"type": "string", "description": "The search query."}
+            "query": {"type": "string", "description": "The keyword-based search query."}
         },
         "required": ["query"]
     }
@@ -27,41 +29,49 @@ class SearchTool(BaseTool):
             return "Error: No search query provided."
         
         results = []
+        errors = []
+
+        # 1. Try DuckDuckGo (Fast & Free) - Priority moved up for speed? No, user wants performance. 
+        # Actually Tavily key exists, use it first for better RAG.
         
-        # 1. Try Tavily (Advanced)
+        # 1. Tavily (Best for LLMs)
         if settings.TAVILY_API_KEY:
             try:
                 client = TavilyClient(api_key=settings.TAVILY_API_KEY)
                 response = client.search(query=query, search_depth="advanced")
+                tavily_res = []
                 for result in response.get('results', []):
-                    results.append(f"Title: {result.get('title')}\nSource: {result.get('url')}\nSnippets: {result.get('content')}\n")
-                if results:
-                    return "--- Tavily Results ---\n" + "\n".join(results)
+                    tavily_res.append(f"Title: {result.get('title')}\nLink: {result.get('url')}\nInfo: {result.get('content')}\n")
+                if tavily_res:
+                    return f"--- Tavily Search Results ({query}) ---\n" + "\n".join(tavily_res)
             except Exception as e:
-                logger.debug(f"Tavily failed: {e}")
+                errors.append(f"Tavily: {e}")
 
-        # 2. Try DuckDuckGo (Resilient)
+        # 2. DuckDuckGo (Backup)
         try:
-            from duckduckgo_search import DDGS
+            # Using synchronous context manager in executor to avoid event loop blocking if needed, 
+            # but DDGS recent versions are decent.
             with DDGS() as ddgs:
-                ddg_results = ddgs.text(query, max_results=5)
-                for r in ddg_results:
-                    results.append(f"Title: {r.get('title')}\nSource: {r.get('href')}\nSnippets: {r.get('body')}\n")
-                if results:
-                    return "--- DuckDuckGo Results ---\n" + "\n".join(results)
+                ddg_gen = ddgs.text(query, max_results=6)
+                ddg_res = []
+                for r in ddg_gen:
+                    ddg_res.append(f"Title: {r.get('title')}\nLink: {r.get('href')}\nInfo: {r.get('body')}\n")
+                if ddg_res:
+                    return f"--- DuckDuckGo Results ({query}) ---\n" + "\n".join(ddg_res)
         except Exception as e:
-            logger.debug(f"DuckDuckGo failed: {e}")
+             errors.append(f"DDG: {e}")
 
-        # 3. Fallback to Google Search (Free)
+        # 3. Google (Last Resort via scraped frontend or library)
         try:
             from googlesearch import search
-            google_results = []
-            for url in search(query, num_results=5):
-                google_results.append(f"URL: {url}")
+            google_res = []
+            # googlesearch-python returns only URLs
+            for url in search(query, num_results=5, advanced=True):
+                 google_res.append(f"Title: {url.title}\nLink: {url.url}\nInfo: {url.description}")
             
-            if google_results:
-                return "--- Google Results ---\n" + "\n".join(google_results)
+            if google_res:
+                 return f"--- Google Results ({query}) ---\n" + "\n".join(google_res)
         except Exception as e:
-            logger.debug(f"Google failed: {e}")
+            errors.append(f"Google: {e}")
 
-        return "Error: No results found after trying all search providers."
+        return f"Search failed for '{query}'. Errors: {'; '.join(errors)}"
