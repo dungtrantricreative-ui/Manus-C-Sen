@@ -78,7 +78,7 @@ class LegacySettings:
         self.TAVILY_API_KEY = s.tools.tavily_api_key
         self.MAX_STEPS = s.agent.max_steps
         
-        # New settings access
+        # New settings access (keeping flat for old code, adding nested for new code)
         self.ENABLED_TOOLS = s.tools.enabled
         self.CACHE_ENABLED = s.cache.enabled
         self.CACHE_TTL = s.cache.ttl_seconds
@@ -86,5 +86,10 @@ class LegacySettings:
         self.TRACK_USAGE = s.monitoring.track_usage
         self.USAGE_FILE = s.monitoring.usage_file
         self.name = s.agent.name
+        
+        # Nested object support for 1:1 mapping in new logic
+        self.cache = s.cache
+        self.tools = s.tools
+        self.monitoring = s.monitoring
 
 settings = LegacySettings(settings_obj)

@@ -15,6 +15,13 @@ class EditorTool(BaseTool):
     * Use 'insert' to insert text after a specific line.
     * Use 'undo' to revert the last edit.
     """
+    instructions: str = """
+> [!CAUTION]
+> **OUTPUT QUALITY GUARD**:
+> 1. **CLEAN LYRICS**: Before saving lyrics, STRIP all guitar chords (e.g., [F], [C], [Am], [G7]). 
+> 2. **NO CHORDS ALLOWED**: Leave only the words. If you see brackets `[]` in lyrics, REMOVE them.
+> 3. **FORMATTING**: Ensure proper indentation for code and clear spacing for text.
+"""
     
     parameters: dict = {
         "type": "object",

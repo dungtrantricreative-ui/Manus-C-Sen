@@ -25,6 +25,7 @@ class BaseTool(ABC, BaseModel):
     name: str
     description: str
     parameters: Optional[dict] = None
+    instructions: Optional[str] = None  # Specific expert guidelines for this tool
 
     @abstractmethod
     async def execute(self, **kwargs) -> Any:

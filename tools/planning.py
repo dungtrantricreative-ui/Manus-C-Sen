@@ -26,6 +26,10 @@ class PlanningTool(BaseTool):
                 "enum": ["create", "update", "mark_step", "get", "delete", "validate", "next"],
                 "description": "The planning command to execute."
             },
+            "plan_id": {
+                "type": "string",
+                "description": "Unique identifier for the plan (optional, defaults to 'default')."
+            },
             "title": {
                 "type": "string",
                 "description": "Title of the plan."
@@ -65,7 +69,14 @@ class PlanningTool(BaseTool):
         "required": ["command"]
     }
 
-    current_plan: Dict = Field(default_factory=dict)
+    instructions: str = """
+1. **PLAN FIRST**: For any complex task, CREATE a plan first.
+2. **STATEFUL TRACKING**: Always update step statuses as you progress. Use `mark_step` with `in_progress` when starting and `completed` when done.
+3. **PERSISTENCE**: Use `plan_id` to manage multiple simultaneous goals if necessary.
+4. **NO REDUNDANCY**: Use `next` to see what actually needs to be done next, avoiding repeating finished work.
+"""
+
+    plans: Dict[str, Dict] = Field(default_factory=dict)
 
     # Templates for auto-decomposition based on common task types (ClassVar = not a Pydantic field)
     DECOMPOSITION_TEMPLATES: ClassVar[Dict[str, List[str]]] = {
@@ -133,6 +144,8 @@ class PlanningTool(BaseTool):
         return contextualized
 
     async def execute(self, command: str, **kwargs) -> str:
+        plan_id = kwargs.get("plan_id", "default")
+        
         if command == "create":
             goal = kwargs.get("goal", "")
             steps = kwargs.get("steps", [])
@@ -144,7 +157,7 @@ class PlanningTool(BaseTool):
             if not steps:
                 return "Error: Either 'steps' list or 'goal' for auto-decomposition is required."
             
-            self.current_plan = {
+            self.plans[plan_id] = {
                 "title": kwargs.get("title", goal or "Main Project"),
                 "goal": goal,
                 "steps": steps,
@@ -153,77 +166,83 @@ class PlanningTool(BaseTool):
                 "priorities": [kwargs.get("priority", 3)] * len(steps),
                 "dependencies": [kwargs.get("depends_on", [])] * len(steps)
             }
-            return f"Plan Created: {self.current_plan['title']}\n" + self._format_plan()
+            return f"Plan Created [{plan_id}]: {self.plans[plan_id]['title']}\n" + self._format_plan(plan_id)
 
         elif command == "update":
-            if not self.current_plan:
-                return "Error: No plan exists."
+            if plan_id not in self.plans:
+                return f"Error: Plan ID '{plan_id}' not found."
+            
+            plan = self.plans[plan_id]
             if "title" in kwargs:
-                self.current_plan["title"] = kwargs["title"]
+                plan["title"] = kwargs["title"]
             if "steps" in kwargs:
                 new_steps = kwargs["steps"]
-                diff = len(new_steps) - len(self.current_plan["steps"])
+                diff = len(new_steps) - len(plan["steps"])
                 if diff > 0:
-                    self.current_plan["statuses"].extend(["not_started"] * diff)
-                    self.current_plan["notes"].extend([""] * diff)
-                    self.current_plan["priorities"].extend([3] * diff)
-                    self.current_plan["dependencies"].extend([[]] * diff)
+                    plan["statuses"].extend(["not_started"] * diff)
+                    plan["notes"].extend([""] * diff)
+                    plan["priorities"].extend([3] * diff)
+                    plan["dependencies"].extend([[]] * diff)
                 else:
                     for key in ["statuses", "notes", "priorities", "dependencies"]:
-                        self.current_plan[key] = self.current_plan[key][:len(new_steps)]
-                self.current_plan["steps"] = new_steps
-            return f"Plan Updated.\n" + self._format_plan()
+                        plan[key] = plan[key][:len(new_steps)]
+                plan["steps"] = new_steps
+            return f"Plan Updated [{plan_id}].\n" + self._format_plan(plan_id)
 
         elif command == "mark_step":
-            if not self.current_plan:
-                return "Error: No active plan."
+            if plan_id not in self.plans:
+                return f"Error: Plan ID '{plan_id}' not found."
+            
+            plan = self.plans[plan_id]
             idx = kwargs.get("step_index")
-            if idx is None or not (0 <= idx < len(self.current_plan["steps"])):
+            if idx is None or not (0 <= idx < len(plan["steps"])):
                 return f"Error: Invalid index {idx}."
             
             # Check dependencies before marking in_progress or completed
             new_status = kwargs.get("step_status", "")
             if new_status in ["in_progress", "completed"]:
-                deps = self.current_plan["dependencies"][idx]
+                deps = plan["dependencies"][idx]
                 for dep_idx in deps:
-                    if self.current_plan["statuses"][dep_idx] != "completed":
+                    if plan["statuses"][dep_idx] != "completed":
                         return f"Error: Step {idx} depends on step {dep_idx} which is not completed yet."
             
             if "step_status" in kwargs:
-                self.current_plan["statuses"][idx] = kwargs["step_status"]
+                plan["statuses"][idx] = kwargs["step_status"]
             if "notes" in kwargs:
-                self.current_plan["notes"][idx] = kwargs["notes"]
+                plan["notes"][idx] = kwargs["notes"]
             if "priority" in kwargs:
-                self.current_plan["priorities"][idx] = kwargs["priority"]
+                plan["priorities"][idx] = kwargs["priority"]
             if "depends_on" in kwargs:
-                self.current_plan["dependencies"][idx] = kwargs["depends_on"]
+                plan["dependencies"][idx] = kwargs["depends_on"]
             
-            return f"Step {idx} updated.\n" + self._format_plan()
+            return f"Step {idx} updated in '{plan_id}'.\n" + self._format_plan(plan_id)
 
         elif command == "get":
-            if not self.current_plan:
-                return "No active plan found."
-            return self._format_plan()
+            if plan_id not in self.plans:
+                return f"Plan ID '{plan_id}' not found."
+            return self._format_plan(plan_id)
 
         elif command == "validate":
-            if not self.current_plan:
-                return "No plan to validate."
-            return self._validate_plan()
+            if plan_id not in self.plans:
+                return f"Plan ID '{plan_id}' not found to validate."
+            return self._validate_plan(plan_id)
 
         elif command == "next":
-            if not self.current_plan:
-                return "No active plan. Use 'create' first."
-            return self._get_next_step()
+            if plan_id not in self.plans:
+                return f"Plan ID '{plan_id}' not found. Use 'create' first."
+            return self._get_next_step(plan_id)
 
         elif command == "delete":
-            self.current_plan = {}
-            return "Plan deleted."
+            if plan_id in self.plans:
+                del self.plans[plan_id]
+                return f"Plan '{plan_id}' deleted."
+            return f"Plan '{plan_id}' not found."
 
         return f"Unknown command: {command}"
 
-    def _validate_plan(self) -> str:
+    def _validate_plan(self, plan_id: str) -> str:
         """Validate plan for issues and suggest optimizations."""
-        p = self.current_plan
+        p = self.plans[plan_id]
         issues = []
         suggestions = []
         
@@ -248,7 +267,7 @@ class PlanningTool(BaseTool):
         if high_priority_blocked:
             suggestions.append(f"⏰ High priority steps not started: {high_priority_blocked}")
         
-        result = "📋 **Plan Validation Report**\n"
+        result = f"📋 **Plan Validation Report [{plan_id}]**\n"
         result += "─" * 40 + "\n"
         
         if not issues and not suggestions:
@@ -266,9 +285,9 @@ class PlanningTool(BaseTool):
         
         return result
 
-    def _get_next_step(self) -> str:
+    def _get_next_step(self, plan_id: str) -> str:
         """Get the next actionable step."""
-        p = self.current_plan
+        p = self.plans[plan_id]
         
         # First, check for in-progress steps
         for i, status in enumerate(p["statuses"]):
@@ -295,8 +314,8 @@ class PlanningTool(BaseTool):
         
         return f"➡️ Next step (#{next_idx}): {p['steps'][next_idx]}\n   Priority: {p['priorities'][next_idx]}, Dependencies: {p['dependencies'][next_idx] or 'None'}"
 
-    def _format_plan(self) -> str:
-        p = self.current_plan
+    def _format_plan(self, plan_id: str) -> str:
+        p = self.plans[plan_id]
         steps = p["steps"]
         stats = p["statuses"]
         notes = p["notes"]
@@ -307,7 +326,7 @@ class PlanningTool(BaseTool):
         total = len(steps)
         percent = (completed / total * 100) if total > 0 else 0
         
-        output = f"\n📋 **{p['title']}** [{completed}/{total} - {percent:.0f}%]\n"
+        output = f"\n📋 **{p['title']}** (ID: {plan_id}) [{completed}/{total} - {percent:.0f}%]\n"
         if p.get("goal"):
             output += f"🎯 Goal: {p['goal']}\n"
         output += "─" * 40 + "\n"

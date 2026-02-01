@@ -7,6 +7,11 @@ import asyncio
 class SearchTool(BaseTool):
     name: str = "search_tool"
     description: str = "Search the web for simple queries, checking facts, or news. Use 'browser_use' for deep navigation."
+    instructions: str = """
+1. **QUICK FACTS**: Use this tool for facts, dates, news, or finding URLs.
+2. **NO DOWNLOAD**: This tool cannot download files. Use Terminal for that.
+3. **BRIDGE**: Use this tool to find the right URL, then switch to `browser_use` for deep reading.
+"""
     parameters: dict = {
         "type": "object",
         "properties": {

@@ -49,7 +49,14 @@ Context = TypeVar("Context")
 
 class BrowserUseTool(BaseTool, Generic[Context]):
     name: str = "browser_use"
-    description: str = _BROWSER_DESCRIPTION
+    description: str = "A tool to interact with websites using a real browser. Supports searching, clicking, and reading."
+    instructions: str = """
+> [!IMPORTANT]
+> **ANTI-LAZYNESS POLICY**:
+> 1. **NO SEARCH SNIPPETS**: NEVER answer from Google result snippets. YOU MUST CLICK the result link.
+> 2. **DEEP READING**: If content is missing, SCROLL DOWN or use `read_page`. Never give up after 1 second.
+> 3. **VISUAL CONTEXT**: always use thumbnails/screenshots to identify INDEX numbers for precise clicking.
+"""
     parameters: dict = {
         "type": "object",
         "properties": {
@@ -148,23 +155,53 @@ class BrowserUseTool(BaseTool, Generic[Context]):
 
         return self.context
 
+    def _compress_image(self, b64_data: str, scale: float = 0.5) -> str:
+        """Compress and resize image to save tokens."""
+        import io
+        from PIL import Image
+        import base64
+        
+        try:
+            img_data = base64.b64decode(b64_data)
+            img = Image.open(io.BytesIO(img_data))
+            
+            # Resize
+            new_size = (int(img.width * scale), int(img.height * scale))
+            img = img.resize(new_size, Image.Resampling.LANCZOS)
+            
+            # Save back to b64
+            buffered = io.BytesIO()
+            img.save(buffered, format="JPEG", quality=70)
+            return base64.b64encode(buffered.getvalue()).decode("utf-8")
+        except Exception as e:
+            logger.debug(f"Image compression failed: {e}")
+            return b64_data
+
     async def _get_state_with_screenshot(self, context: BrowserContext, action_msg: str = "") -> ToolResult:
-        """Get current browser state with screenshot and interactive elements."""
+        """Get current browser state with optimized screenshot and filtered elements."""
         try:
             state = await context.get_state()
             page = await context.get_current_page()
             
-            # Take screenshot
+            # Take screenshot (0.5x scale via CSS or post-processing)
             screenshot = await page.screenshot(full_page=False, type="jpeg", quality=80)
             b64_img = base64.b64encode(screenshot).decode("utf-8")
             
-            # Get interactive elements with indices
+            # PHASE 12: Vision Compression
+            b64_img = self._compress_image(b64_img, scale=0.5)
+            
+            # PHASE 12: Saliency Filtering (Limit interactive elements)
             elements_str = ""
             if state.element_tree:
-                elements_str = state.element_tree.clickable_elements_to_string()
-                # Limit length
-                if len(elements_str) > 3000:
-                    elements_str = elements_str[:3000] + "\n... [truncated]"
+                # Get elements as lines
+                full_elements = state.element_tree.clickable_elements_to_string()
+                lines = full_elements.split("\n")
+                
+                # Saliency: Keep top 50 elements + truncation notice
+                if len(lines) > 50:
+                    elements_str = "\n".join(lines[:50]) + f"\n... [Truncated {len(lines) - 50} more elements for cost efficiency]"
+                else:
+                    elements_str = full_elements
             
             # Build comprehensive state info
             output_parts = []
@@ -175,11 +212,9 @@ class BrowserUseTool(BaseTool, Generic[Context]):
             output_parts.append(f"📄 **Title:** {state.title}")
             
             if elements_str:
-                output_parts.append(f"\n🖱️ **Interactive Elements (use INDEX to click/input):**\n{elements_str}")
+                output_parts.append(f"\n🖱️ **Interactive Elements (Top 50):**\n{elements_str}")
             else:
-                output_parts.append("\n⚠️ No interactive elements found on this page.")
-            
-            output_parts.append("\n💡 **Next step:** Look at the screenshot and use the INDEX numbers above to interact!")
+                output_parts.append("\n⚠️ No interactive elements found.")
             
             return ToolResult(
                 output="\n".join(output_parts),
@@ -315,9 +350,29 @@ class BrowserUseTool(BaseTool, Generic[Context]):
                     page = await context.get_current_page()
                     import markdownify
                     content = markdownify.markdownify(await page.content())
-                    if len(content) > 4000:
-                        content = content[:4000] + "\n... [truncated]"
-                    return ToolResult(output=f"📝 Extracted content for '{goal}':\n{content}")
+                    
+                    # OpenManus Style: Use LLM to distill the page content based on goal
+                    prompt = f"""
+                    You are a data extraction expert. Extract information from the following page content based on the goal.
+                    
+                    GOAL: {goal}
+                    PAGE CONTENT:
+                    {content[:8000]}
+                    
+                    INSTRUCTIONS:
+                    1. Extract ONLY relevant information.
+                    2. If the goal is a question, answer it concisely.
+                    3. If requested data is not found, state clearly what is missing.
+                    4. Return the result as a clean summary.
+                    """
+                    
+                    if self.llm:
+                        distilled = await self.llm.ask(prompt)
+                        return ToolResult(output=f"🔍 Distilled Extraction for '{goal}':\n{distilled}")
+                    else:
+                        if len(content) > 4000:
+                            content = content[:4000] + "\n... [truncated]"
+                        return ToolResult(output=f"📝 Raw Content (LLM unavailable) for '{goal}':\n{content}")
 
                 # Tab management
                 elif action == "switch_tab":

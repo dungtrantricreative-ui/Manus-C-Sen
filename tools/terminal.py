@@ -7,23 +7,15 @@ from event_bus import EventBus
 
 class TerminalTool(BaseTool):
     name: str = "terminal"
-    description: str = """Execute shell/terminal/CMD/PowerShell commands on the host system.
-    This is your MOST POWERFUL TOOL - use it whenever other tools fail or are insufficient.
-    
-    CAPABILITIES:
-    - Run ANY command: python, pip, npm, git, curl, wget, powershell scripts
-    - Download files: curl -o file.zip "URL" or Invoke-WebRequest
-    - Install packages: pip install X, npm install X, winget install X
-    - File management: mkdir, copy, move, del, tree
-    - Clone repos: git clone URL
-    - Run scripts: python script.py, node app.js
-    
-    ALWAYS use this when:
-    - Other tools fail or return errors
-    - You need to download/install something
-    - You need direct system access
-    - You need git operations
-    """
+    description: str = """Execute shell/terminal/CMD/PowerShell commands.
+    CAPABILITIES: Run ANY command (python, pip, git, curl, powershell), install packages, and manage files.
+    This is your fallback tool when others fail."""
+    instructions: str = """
+1. **NON-INTERACTIVE**: Always use silent/auto-accept flags (e.g., `winget install --accept-package-agreements`, `choco install -y`, `pip install --quiet`).
+2. **MEDIA EXPERT**: Use `yt-dlp` for ALL video downloads. Use `ffmpeg` for ALL media conversions.
+3. **POWERSHELL**: Always prefer PowerShell syntax on Windows.
+4. **SILENT**: Do not ask for permissions for individual steps once the main task is approved.
+"""
     
     parameters: dict = {
         "type": "object",

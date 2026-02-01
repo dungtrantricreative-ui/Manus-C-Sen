@@ -1,16 +1,28 @@
-import asyncio
+import os
 import sys
+import logging
 from loguru import logger
+
+# 1. SILENCE NOISY LOGS IMMEDIATELY (Before any other imports)
+logger.remove()
 from rich.logging import RichHandler
+logger.add(RichHandler(rich_tracebacks=True, markup=True), format="[dim]{time:HH:mm:ss}[/dim] {message}", level="SUCCESS")
+
+# Set levels for standard logging
+logging.getLogger("browser_use").setLevel(logging.CRITICAL)
+logging.getLogger("httpx").setLevel(logging.CRITICAL)
+logging.getLogger("openai").setLevel(logging.CRITICAL)
+logging.getLogger("urllib3").setLevel(logging.CRITICAL)
+
+# Prevent browser_use from configuring its own logging if it hasn't already
+os.environ["BROWSER_USE_LOGGING_LEVEL"] = "CRITICAL"
+
+import asyncio
 from rich.console import Console
 from rich.panel import Panel
 
 from agent_core import ManusCompetition
 from schema import Memory, Message, AgentState
-
-# Configure logger to output to stdout nicely
-logger.remove()
-logger.add(RichHandler(rich_tracebacks=True, markup=True), format="{message}", level="INFO")
 
 async def main():
     console = Console()
@@ -23,10 +35,9 @@ async def main():
     # Initialize Memory
     memory = Memory()
 
-    # Initialize Agent
+    # Initialize Agent (Now handles its own Memory and System Prompt internally)
     agent = ManusCompetition()
-    agent.initialize(memory)
-
+    
     print("\nReady! type 'exit' to quit.\n")
 
     try:
@@ -38,17 +49,14 @@ async def main():
                 if user_input.lower() in ["exit", "quit", "q"]:
                     break
                 
-                # Re-initialize with user input for complexity detection
-                agent.initialize(agent.memory, user_input)
-                
-                # Add user message to memory
-                agent.memory.add_message(Message.user_message(user_input))
+                # Initialize complexity and user message
+                agent.initialize(user_input)
                 
                 print("\n" + "-"*30)
-                # Run the agent (it logs its own thoughts/actions)
+                # Run the agent
                 await agent.run()
                 
-                # Check for final answer to display prominently
+                # Check for final answer
                 if agent.final_answer:
                      console.print("\n" + "─"*50)
                      console.print(f"[bold green]Manus-Cu-Sen:[/bold green]\n{agent.final_answer}")
@@ -56,27 +64,28 @@ async def main():
                 
                 print("\n" + "-"*30)
                 
-                # Reset for next turn (keep memory, reset counters)
+                # Reset for next turn
                 agent.current_step = 0
                 agent.state = AgentState.IDLE
                 agent.final_answer = None
-                agent._is_complex_task = False  # Reset complexity flag
                 
             except KeyboardInterrupt:
                 break
             except Exception as e:
                 logger.error(f"Runtime Error: {e}")
-                import traceback
-                traceback.print_exc()
                 
     finally:
-        # Save usage stats before exiting
+        # Save usage stats
         if hasattr(agent, 'llm') and hasattr(agent.llm, 'save_usage'):
             agent.llm.save_usage()
             console.print(f"\n[dim]{agent.llm.get_usage_summary()}[/dim]")
         
-        if agent.browser_context_helper:
-            await agent.browser_context_helper.cleanup_browser()
+        # Cleanup any active tools (like browser)
+        if hasattr(agent.available_tools, "get_tool"):
+            browser_tool = agent.available_tools.get_tool("browser_use")
+            if browser_tool and hasattr(browser_tool, "cleanup"):
+                await browser_tool.cleanup()
+        
         print("\nGoodbye!")
 
 if __name__ == "__main__":

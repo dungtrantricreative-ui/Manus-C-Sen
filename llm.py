@@ -155,21 +155,30 @@ class LLM:
         self.primary_name = "primary"
         
         # Dynamic Backup Clients - sorted by cost (cheapest first)
-        self.backup_clients = []
+        raw_backups = []
         for b in settings.BACKUPS:
             if b.api_key and b.supports_tools:
-                self.backup_clients.append({
+                # Calculate cost score for sorting
+                provider_key = b.name.split('_')[0].lower() # e.g. "groq_primary" -> "groq"
+                costs = UsageTracker.COST_PER_M_TOKENS.get(provider_key, UsageTracker.COST_PER_M_TOKENS["default"])
+                cost_score = costs["input"] + costs["output"]
+                
+                raw_backups.append({
                     "name": b.name,
                     "client": AsyncOpenAI(api_key=b.api_key, base_url=b.base_url),
-                    "model": b.model_name
+                    "model": b.model_name,
+                    "cost_score": cost_score
                 })
+        
+        # PHASE 12: Sort backups by cost score (ASC)
+        self.backup_clients = sorted(raw_backups, key=lambda x: x["cost_score"])
         
         # Usage tracking and caching
         self.usage_tracker = UsageTracker()
         self.cache = ResponseCache()
 
         if self.backup_clients and LLM._instances_count < 1:
-            logger.info(f"Loaded {len(self.backup_clients)} backup provider(s): {', '.join([b['name'] for b in self.backup_clients])}")
+            logger.success(f"⚡ FUSION: {len(self.backup_clients)} backup networks available.")
         
         LLM._instances_count += 1
 
@@ -250,15 +259,16 @@ class LLM:
         
         raise RuntimeError("All LLM providers failed.")
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2, min=5, max=15))
     async def ask_tool(self, messages: List[Any], tools: List[dict], tool_choice: str = "auto", model: Optional[str] = None) -> Any:
         target_model = model or settings.MODEL_NAME
         msg_dicts = self._prepare_messages(messages, target_model)
         
-        # Check cache first (for non-critical repeated queries)
-        # cached = self.cache.get(msg_dicts, tools)
-        # if cached:
-        #     return cached
+        # PHASE 12: Optimized Caching
+        if settings.cache.enabled:
+            cached = self.cache.get(msg_dicts, tools)
+            if cached:
+                logger.success("🚀 Performance: Response served from cache.")
+                return cached
         
         try:
             response = await self.primary_client.chat.completions.create(
@@ -269,15 +279,23 @@ class LLM:
                 stream=False
             )
             self._extract_usage(response, self.primary_name)
-            # self.cache.set(msg_dicts, response, tools)
+            
+            if settings.cache.enabled:
+                self.cache.set(msg_dicts, response, tools)
             return response
         except Exception as e:
+            # Clean up rate limit messages
+            err_msg = str(e)
+            if "Rate limit" in err_msg:
+                err_msg = "Rate limit reached (Summarized)"
+            logger.debug(f"Primary failed: {err_msg}")
             if not self.backup_clients:
                 raise e
             
+            # PHASE 12: Cost-Aware Failover (Clients are already added in sequence)
             for b in self.backup_clients:
                 try:
-                    logger.info(f"Failover (Non-Stream): Switching to {b['name']}")
+                    logger.success(f"🔄 Failover: Switching to {b['name']}...")
                     msg_dicts_backup = self._prepare_messages(messages, b['model'])
                     response = await b['client'].chat.completions.create(
                         model=b['model'],
@@ -288,7 +306,8 @@ class LLM:
                     )
                     self._extract_usage(response, b['name'])
                     return response
-                except Exception:
+                except Exception as be:
+                    logger.debug(f"Backup provider {b['name']} also failed: {be}")
                     continue
             raise e
 
