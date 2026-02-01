@@ -203,56 +203,78 @@ class Message(BaseModel):
 
 class Memory(BaseModel):
     messages: List[Message] = Field(default_factory=list)
-    max_messages: int = Field(default=100)
+    max_messages: int = Field(default=50)  # Reduced from 100 for cost efficiency
+    summarization_threshold: int = Field(default=30)  # Trigger summarization earlier
 
     async def summarize(self, llm: Any) -> None:
-        """Summarize older messages to stay within token limits."""
-        # Only summarize if we exceed max_messages
-        if len(self.messages) <= self.max_messages:
+        """Summarize older messages to stay within token limits, optimized for cost."""
+        # Trigger summarization earlier for cost savings
+        if len(self.messages) <= self.summarization_threshold:
             return
 
         # Keep system prompt(s) and the most recent N messages
         system_msgs = [m for m in self.messages if m.role == Role.SYSTEM]
-        # We'll keep the last 10 messages for immediate context
-        keep_recent = 10
-        to_summarize = [m for m in self.messages if m.role != Role.SYSTEM][:-keep_recent]
-        recent_msgs = [m for m in self.messages if m.role != Role.SYSTEM][-keep_recent:]
+        non_system = [m for m in self.messages if m.role != Role.SYSTEM]
+        
+        # Keep only last 8 messages for immediate context (reduced from 10)
+        keep_recent = 8
+        to_summarize = non_system[:-keep_recent] if len(non_system) > keep_recent else []
+        recent_msgs = non_system[-keep_recent:]
 
         if not to_summarize:
-            # If after removing system messages we don't have enough to summarize effectively
-            # just fallback to slicing
             self.messages = system_msgs + recent_msgs
             return
 
-        summary_prompt = "Tóm tắt ngắn gọn nội dung cuộc hội thoại sau đây, giữ lại các thông tin quan trọng nhất:\n\n"
-        for msg in to_summarize:
-            content = msg.content or ""
+        # Build concise summary prompt (token-efficient)
+        summary_content = []
+        for msg in to_summarize[-15:]:  # Only summarize last 15 of old messages
+            content = (msg.content or "")[:150]  # Truncate long content
             if msg.tool_calls:
-                content += f" [Tool Calls: {', '.join([tc.function.name for tc in msg.tool_calls])}]"
-            summary_prompt += f"{msg.role}: {content}\n"
+                tools = [tc.function.name for tc in msg.tool_calls]
+                content = f"[{msg.role}] Tools: {', '.join(tools)}"
+            elif content:
+                content = f"[{msg.role}] {content}"
+            if content:
+                summary_content.append(content)
+
+        summary_prompt = (
+            "Tóm tắt cực ngắn gọn (3-5 ý chính) cuộc hội thoại sau, chỉ giữ thông tin quan trọng:\n\n"
+            + "\n".join(summary_content)
+        )
 
         try:
             summary_text = await llm.quick_ask([{"role": "user", "content": summary_prompt}])
+            # Keep summary short
+            if len(summary_text) > 500:
+                summary_text = summary_text[:500] + "..."
+            
             summary_msg = Message.assistant_message(
-                content=f"[TÓM TẮT HỘI THOẠI TRƯỚC ĐÓ]: {summary_text}"
+                content=f"[TÓM TẮT]: {summary_text}"
             )
             self.messages = system_msgs + [summary_msg] + recent_msgs
         except Exception as e:
             from loguru import logger
-            logger.error(f"Failed to summarize memory: {e}")
-            # Fallback to sliding window
+            logger.warning(f"Summarization failed: {e}. Using sliding window.")
             self.messages = system_msgs + recent_msgs
 
     def add_message(self, message: Message) -> None:
-        """Add a message to memory. Summarization is handled externally via the summarize method."""
+        """Add a message to memory with deduplication."""
+        # Deduplicate: skip if last message has identical content
+        if self.messages:
+            last = self.messages[-1]
+            if (last.role == message.role and 
+                last.content == message.content and 
+                not message.tool_calls):
+                return  # Skip duplicate
+        
         self.messages.append(message)
-
-    def add_messages(self, messages: List[Message]) -> None:
-        """Add multiple messages to memory"""
-        self.messages.extend(messages)
-        # Optional: Implement message limit
-        if len(self.messages) > self.max_messages:
-            self.messages = self.messages[-self.max_messages :]
+        
+        # Hard limit to prevent runaway memory
+        if len(self.messages) > self.max_messages * 2:
+            # Emergency truncation: keep system + last max_messages
+            system_msgs = [m for m in self.messages if m.role == Role.SYSTEM]
+            others = [m for m in self.messages if m.role != Role.SYSTEM][-self.max_messages:]
+            self.messages = system_msgs + others
 
     def clear(self) -> None:
         """Clear all messages"""

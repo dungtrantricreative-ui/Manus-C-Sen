@@ -38,6 +38,9 @@ async def main():
                 if user_input.lower() in ["exit", "quit", "q"]:
                     break
                 
+                # Re-initialize with user input for complexity detection
+                agent.initialize(agent.memory, user_input)
+                
                 # Add user message to memory
                 agent.memory.add_message(Message.user_message(user_input))
                 
@@ -57,6 +60,7 @@ async def main():
                 agent.current_step = 0
                 agent.state = AgentState.IDLE
                 agent.final_answer = None
+                agent._is_complex_task = False  # Reset complexity flag
                 
             except KeyboardInterrupt:
                 break
@@ -66,6 +70,11 @@ async def main():
                 traceback.print_exc()
                 
     finally:
+        # Save usage stats before exiting
+        if hasattr(agent, 'llm') and hasattr(agent.llm, 'save_usage'):
+            agent.llm.save_usage()
+            console.print(f"\n[dim]{agent.llm.get_usage_summary()}[/dim]")
+        
         if agent.browser_context_helper:
             await agent.browser_context_helper.cleanup_browser()
         print("\nGoodbye!")

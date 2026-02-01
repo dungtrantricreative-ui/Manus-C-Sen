@@ -1,0 +1,31 @@
+{
+  "sessions": [
+    {
+      "total_input_tokens": 32133,
+      "total_output_tokens": 715,
+      "total_requests": 6,
+      "estimated_cost_usd": 0.023736,
+      "by_provider": {
+        "primary": {
+          "input_tokens": 22796,
+          "output_tokens": 470,
+          "requests": 4,
+          "cost_usd": 0.023736
+        },
+        "sambanova": {
+          "input_tokens": 9337,
+          "output_tokens": 245,
+          "requests": 2,
+          "cost_usd": 0.0
+        }
+      },
+      "session_start": "2026-02-01T11:17:42.382914"
+    }
+  ],
+  "cumulative": {
+    "total_input_tokens": 32133,
+    "total_output_tokens": 715,
+    "total_requests": 6,
+    "total_cost_usd": 0.023736
+  }
+}

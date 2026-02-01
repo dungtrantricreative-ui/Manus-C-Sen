@@ -15,6 +15,12 @@ from schema import Message, AgentState, ToolChoice, ToolCall, Role, Function
 from base_tool import BaseTool, ToolResult, ToolCollection, ToolFailure
 from llm import LLM
 
+# Prompts (New V2 with CoT)
+from prompts import (
+    get_system_prompt, get_reasoning_prompt, get_reflection_prompt,
+    is_complex_task, NEXT_STEP_PROMPT_DETAILED, COT_REASONING_PROMPT
+)
+
 # Tools
 from tools.browser_use_tool import BrowserUseTool
 from tools.python_tool import PythonTool
@@ -26,20 +32,8 @@ from tools.planning import PlanningTool
 from tools.ask_human import AskHumanTool
 from tools.knowledge import KnowledgeTool
 
-# Prompts
-SYSTEM_PROMPT_TEMPLATE = (
-    "You are Manus-Cu-Sen, an all-capable AI assistant. "
-    "You solve complex tasks by combining reasoning with specialized tools. "
-    "MISSION: Be proactive, resourceful, and professional. Use tools when needed, but feel free to chat or seek clarification when the task is ambiguous.\n"
-    "SYSTEM GUIDELINES:\n"
-    "1. **Proactive Search & Browse**: Use `search_tool` for general questions. IF THE USER PROVIDES A URL OR IF SEARCH RESULTS ARE POOR, YOU MUST USE `browser_use`. Never claim you cannot access a site if you have `browser_use`.\n"
-    "2. **Helpful Human-Interaction**: The `ask_human` tool is for HINTS. Explain your thought process clearly. Never ask redundant questions.\n"
-    "3. **Dynamic Language Policy**: Logic can be in English, but ALL user-facing output (Thoughts, Tool calls, Final Answers) MUST strictly match the user's language.\n"
-    "4. **Knowledge & Precision**: Use `knowledge` for high-value technical lessons. Use `editor` for surgical fixes.\n"
-    "5. **WORKSPACE MANDATE (WINDOWS)**: You are on Windows. Save ALL files in `outputs/` default. ALWAYS prepend `outputs/` to filenames in tool calls. NEVER use `/tmp/` or Linux paths.\n"
-    "The initial directory is: {directory}."
-)
-
+# Prompts - Now imported from prompts.py for better organization
+# Legacy fallback (will use new prompts module)
 NEXT_STEP_PROMPT = """
 Analyze the previous results. Decide if you need more info or can proceed to the next step.
 If the task is finished, use `terminate`.
@@ -103,17 +97,18 @@ class BrowserContextHelper:
             await browser_tool.cleanup()
 
 
+
 class ToolCallAgent(BaseModel):
-    """Base agent class for handling tool/function calls with enhanced abstraction"""
+    """Base agent class for handling tool/function calls with enhanced reasoning"""
 
     name: str = "toolcall"
     description: str = "an agent that can execute tool calls."
 
-    system_prompt: str = SYSTEM_PROMPT_TEMPLATE.format(directory=os.getcwd())
+    system_prompt: str = Field(default_factory=lambda: get_system_prompt(settings.MAX_STEPS))
     next_step_prompt: str = NEXT_STEP_PROMPT
 
     llm: LLM = Field(default_factory=LLM)
-    memory: Any = Field(default=None) # Set in initialization
+    memory: Any = Field(default=None)  # Set in initialization
     state: AgentState = AgentState.IDLE
 
     # Available tools will be set by subclass or init
@@ -124,6 +119,8 @@ class ToolCallAgent(BaseModel):
     tool_calls: List[ToolCall] = Field(default_factory=list)
     _current_base64_image: Optional[str] = PrivateAttr(default=None)
     _console: Console = PrivateAttr(default_factory=Console)
+    _is_complex_task: bool = PrivateAttr(default=False)  # Adaptive reasoning flag
+    _last_tool_result: str = PrivateAttr(default="")  # For reflection
     final_answer: Optional[str] = None
 
     max_steps: int = 30
@@ -132,15 +129,28 @@ class ToolCallAgent(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
-    def initialize(self, memory):
+    def initialize(self, memory, user_input: str = ""):
         self.memory = memory
+        # Detect task complexity for adaptive reasoning
+        if user_input:
+            self._is_complex_task = is_complex_task(user_input)
 
     async def think(self) -> bool:
-        """Process current state and decide next actions using tools"""
-        if self.next_step_prompt:
+        """Process current state and decide next actions with adaptive reasoning"""
+        # Use adaptive prompt based on task complexity
+        reasoning_prompt = get_reasoning_prompt(self._is_complex_task)
+        effective_prompt = reasoning_prompt if self._is_complex_task else self.next_step_prompt
+        
+        # Add reflection on last result if available (for complex tasks)
+        if self._is_complex_task and self._last_tool_result:
+            reflection = get_reflection_prompt(True, self._last_tool_result)
+            effective_prompt = reflection + "\n\n" + effective_prompt
+            self._last_tool_result = ""  # Reset after use
+        
+        if effective_prompt:
             # Check if last message is already the same prompt to avoid duplication
-            if not self.memory.messages or self.memory.messages[-1].content != self.next_step_prompt:
-                user_msg = Message.user_message(self.next_step_prompt)
+            if not self.memory.messages or self.memory.messages[-1].content != effective_prompt:
+                user_msg = Message.user_message(effective_prompt)
                 self.memory.add_message(user_msg)
 
         try:
@@ -231,13 +241,17 @@ class ToolCallAgent(BaseModel):
                  self._console.print(f"  [green]Done:[/green] [dim]Cong cu '{command.function.name}' hoan tat.[/dim]")
 
             # Add tool response
+            result_str = str(result)
             tool_msg = Message.tool_message(
-                content=str(result),
+                content=result_str,
                 tool_call_id=command.id,
                 name=command.function.name,
                 base64_image=self._current_base64_image
             )
             self.memory.add_message(tool_msg)
+            
+            # Store result for reflection in next think cycle
+            self._last_tool_result = result_str[:500]  # Limit for efficiency
             results.append(f"Tool {command.function.name} executed.")
         
         return "\\n\\n".join(results)
@@ -251,6 +265,34 @@ class ToolCallAgent(BaseModel):
 
         # Special handling for Terminate
         if name.lower() == "terminate":
+            # --- ANTI-LAZINESS CHECK ---
+            # If we used browser_use recently, ensure we actually interact/read, not just search & quit.
+            has_browser_use = False
+            has_interaction = False
+            
+            # Check recent history (last 10 messages) for browser usage
+            recent_msgs = self.memory.messages[-10:] if len(self.memory.messages) > 10 else self.memory.messages
+            for msg in recent_msgs:
+                if msg.tool_calls:
+                    for tc in msg.tool_calls:
+                        if tc.function.name == "browser_use":
+                            has_browser_use = True
+                            args = json.loads(tc.function.arguments)
+                            action = args.get("action", "")
+                            # Actions that count as "real work"
+                            if action in ["click_element", "read_page", "extract_content", "input_text", "scroll_down"]:
+                                has_interaction = True
+            
+            if has_browser_use and not has_interaction and self.current_step < self.max_steps:
+                 return (
+                     "⚠️ **SYSTEM INTERVENTION (ANTI-LAZINESS)**: \n"
+                     "You used the browser but ONLY searched/visited. You did NOT click results or read content.\n"
+                     "❌ You cannot terminate yet.\n"
+                     "👉 **REQUIRED**: You MUST use `click_element` to open a result, OR `read_page`/`extract_content` to read details.\n"
+                     "Do not guess the answer from search snippets."
+                 )
+            # ---------------------------
+
             self.state = AgentState.FINISHED
             res = await self.available_tools.execute(name=name, tool_input=args)
             if isinstance(res, ToolResult):
