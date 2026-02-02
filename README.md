@@ -1,119 +1,119 @@
-# Hướng dẫn sử dụng Manus Prime (Brain Transplant Edition)
+# Manus Prime User Guide (Brain Transplant Edition)
 
-## 1. Giới thiệu
+## 1. Introduction
 
-Manus Prime là một tác nhân AI tự trị tiên tiên nhất, được thiết kế để thực thi các tác vụ với độ chính xác cao và hiệu quả tối ưu. Dự án này đại diện cho một bước tiến tới "Siêu trí tuệ" (Phase 13). Phiên bản này tích hợp sâu rộng logic cốt lõi từ dự án OpenManus (Event system), Plandex (Planning ledger), và OpenHands (Host execution), mang lại một nền tảng vững chắc cho các hoạt động phức tạp.
+Manus Prime is one of the most advanced autonomous AI agents, designed to execute tasks with high accuracy and optimal efficiency. This project represents a step toward "Superintelligence" (Phase 13). This release deeply integrates core logic from the OpenManus (Event system), Plandex (Planning ledger), and OpenHands (Host execution) projects, providing a solid foundation for complex operations.
 
-Cách thức hoạt động của Manus Prime dựa trên một vòng lặp phản hồi liên tục, nơi tác nhân liên tục quan sát môi trường thông qua `browser-use`, lập kế hoạch thông qua `planning` tool và thực thi trực tiếp trên hệ thống (Host Access).
+Manus Prime operates on a continuous feedback loop: the agent constantly observes the environment via `browser-use`, plans via the `planning` tool, and executes directly on the system (Host Access).
 
-## 2. Các tính năng nổi bật
+## 2. Key Features
 
-Manus Prime được trang bị một loạt các tính năng tiên tiến:
+Manus Prime is equipped with a range of advanced capabilities:
 
-*   **Lõi sự kiện (Event-Driven):** Thừa hưởng từ kiến trúc OpenHands, mọi hành động và quan sát được ghi lại vào EventBus.
-*   **Siêu kế hoạch (Strategic Planning):** Tích hợp logic ledger của Plandex để quản lý các task dài hạn.
-*   **Thực thi Host Native:** Loại bỏ sandbox, cho phép AI can thiệp trực tiếp vào PowerShell và Python trên máy thật.
-*   **Trình duyệt thị giác:** Sử dụng `browser-use` với bản đồ tương tác INDEX.
+* **Event-Driven Core:** Inherited from the OpenHands architecture, all actions and observations are recorded in the EventBus.
+* **Strategic Planning:** Integrates Plandex’s ledger logic to manage long-term tasks.
+* **Native Host Execution:** Removes sandboxing, enabling the AI to interact directly with PowerShell and Python on the actual machine.
+* **Visual Browser:** Uses `browser-use` with an interactive INDEX map.
 
-## 3. Kiến trúc nội bộ
+## 3. Internal Architecture
 
-Manus-C-Sen ULTIMATE hoạt động dựa trên vòng lặp "ToolCall" của OpenManus. Dưới đây là mô tả chi tiết về các module chính:
+Manus-C-Sen ULTIMATE runs on OpenManus’s "ToolCall" loop. Below is a detailed description of the main modules:
 
-Manus-C-Sen ULTIMATE hoạt động dựa trên vòng lặp "ToolCall" của OpenManus, với các module chính được tổ chức rõ ràng. **`agent_core.py`** đóng vai trò là "bộ não" mới của tác nhân, triển khai tác nhân `ManusCompetition` và `BrowserContextHelper`, quản lý luồng suy nghĩ, hành động và tương tác với các công cụ.
+Manus-C-Sen ULTIMATE is built around OpenManus’s "ToolCall" loop, with its core modules clearly organized. **`agent_core.py`** serves as the agent’s new "brain", implementing the `ManusCompetition` agent and `BrowserContextHelper`, managing thought flows, actions, and tool interactions.
 
-**`tools/browser_use_tool.py`** là công cụ trình duyệt hỗ trợ thị giác được tùy chỉnh, cho phép tương tác nâng cao với các trang web. **`llm.py`** chịu trách nhiệm xử lý các client LLM, bao gồm cơ chế dự phòng và gọi công cụ, đồng thời tích hợp theo dõi mức sử dụng và bộ nhớ đệm để tối ưu hóa chi phí.
+**`tools/browser_use_tool.py`** is a customized visual browser tool that enables advanced interactions with web pages. **`llm.py`** handles LLM clients, including fallback mechanisms and tool invocation, while integrating usage tracking and caching to optimize costs.
 
-**`schema.py`** định nghĩa các cấu trúc dữ liệu chính như `Message`, `AgentState`, `ToolCall`, `Function` và `Memory`, đồng thời thực hiện xác thực và làm sạch dữ liệu để đảm bảo an toàn. **`config.py`** quản lý cấu hình của tác nhân, bao gồm cài đặt LLM, công cụ được bật, cài đặt bộ nhớ đệm, bộ nhớ và giám sát. Cuối cùng, **`prompts.py`** chứa các mẫu nhắc nhở tập trung, hỗ trợ suy luận theo chuỗi suy nghĩ (CoT) và độ phức tạp thích ứng, hướng dẫn tác nhân trong quá trình ra quyết định.
+**`schema.py`** defines main data structures such as `Message`, `AgentState`, `ToolCall`, `Function`, and `Memory`, and performs validation and sanitization to ensure safety. **`config.py`** manages agent configuration, including LLM settings, enabled tools, cache settings, memory, and monitoring. Finally, **`prompts.py`** contains focused prompt templates, supporting chain-of-thought (CoT) reasoning and adaptive complexity to guide the agent’s decision-making.
 
-## 4. Bộ công cụ chính (Master Tool Suite)
+## 4. Master Tool Suite
 
-Manus-C-Sen ULTIMATE sử dụng một bộ công cụ đa dạng để thực hiện các tác vụ khác nhau:
+Manus-C-Sen ULTIMATE uses a diverse toolset to perform a variety of tasks:
 
-Manus-C-Sen ULTIMATE sử dụng một bộ công cụ đa dạng để thực hiện các tác vụ khác nhau, mỗi công cụ được thiết kế với mục đích và hướng dẫn sử dụng cụ thể:
+Manus-C-Sen ULTIMATE employs a diverse toolkit for different tasks, each designed with specific purposes and usage guidance:
 
-**`browser_use` (Tiêu chuẩn mới)** là công cụ chính để tương tác với web thông qua thư viện `browser-use`. Nó cung cấp các khả năng toàn diện như `go_to_url` để điều hướng đến một URL cụ thể, `click_element` để nhấp vào các phần tử tương tác, `input_text` để nhập văn bản vào các trường, `scroll` để cuộn trang, `extract_content` để trích xuất nội dung và `switch_tab` để chuyển đổi giữa các tab trình duyệt. Công cụ này đặc biệt thông minh với khả năng tự động tìm các phần tử dựa trên mô tả trực quan, giúp tác nhân tương tác với các trang web phức tạp một cách hiệu quả. Hướng dẫn sử dụng nhấn mạnh việc luôn gọi `go_to_url` đầu tiên để thiết lập ngữ cảnh, sau đó phân tích ảnh chụp màn hình và danh sách phần tử được trả về để xác định `INDEX` phù hợp cho các hành động nhấp hoặc nhập. Điều quan trọng là phải luôn đợi trang tải hoàn tất giữa các hành động để đảm bảo tính chính xác và tránh lỗi.
+**`browser_use` (The new standard)** is the primary tool for interacting with the web via the `browser-use` library. It provides comprehensive capabilities such as `go_to_url` for navigating to a specific URL, `click_element` for interacting elements, `input_text` for entering text into fields, `scroll` for page scrolling, `extract_content` for content extraction, and `switch_tab` for changing browser tabs. This tool is especially intelligent with automatic element discovery based on visual descriptions, helping the agent interact with complex websites efficiently. Usage guidance emphasizes always calling `go_to_url` first to establish context, then analyzing the returned screenshot and element list to determine the correct `INDEX` for click or input actions. It is important to always wait for the page to finish loading between actions to ensure accuracy and avoid errors.
 
-**`python_execute` (Mới!)** là một công cụ mạnh mẽ được thiết kế để thực thi mã Python trong một tiến trình sandbox an toàn. Công cụ này lý tưởng cho một loạt các tác vụ bao gồm phân tích dữ liệu phức tạp, thực hiện các phép tính toán học chính xác, thao tác chuỗi hiệu quả và xác minh logic chương trình. Một điểm quan trọng cần lưu ý là chỉ đầu ra được in ra console mới được ghi lại và trả về. Môi trường thực thi là sandbox, cho phép nhập các thư viện Python tiêu chuẩn nhưng có thể hạn chế quyền truy cập mạng bên ngoài để đảm bảo an toàn. Do đó, công cụ này đặc biệt hữu ích cho các tác vụ đòi hỏi xử lý dữ liệu chuyên sâu hoặc các phép tính phức tạp mà ngôn ngữ tự nhiên khó có thể diễn đạt hoặc thực hiện.
+**`python_execute` (New!)** is a powerful tool designed to execute Python code in a secure sandboxed process. It’s ideal for tasks including complex data analysis, precise mathematical computations, efficient string manipulations, and programmatic logic verification. A key note is that only console-printed output is recorded and returned. The execution environment is sandboxed, allowing standard Python libraries but potentially restricting external network access for safety. Thus, this tool is particularly useful for tasks requiring intensive data processing or computations that are hard to express or perform via natural language.
 
-**`terminal` (Tích hợp hệ thống)** là một công cụ linh hoạt cho phép tác nhân thực thi các lệnh shell gốc, cung cấp khả năng chạy hầu hết mọi lệnh hệ thống như Python, pip, git, curl, hoặc PowerShell. Công cụ này đặc biệt hữu ích cho việc cài đặt gói phần mềm, quản lý tệp và là một công cụ dự phòng đáng tin cậy khi các công cụ chuyên biệt khác gặp sự cố. Hướng dẫn sử dụng nhấn mạnh việc luôn sử dụng các cờ không tương tác hoặc tự động chấp nhận (ví dụ: `winget install --accept-package-agreements`, `choco install -y`, `pip install --quiet`) để tránh các yêu cầu xác nhận thủ công. Đối với các tác vụ liên quan đến đa phương tiện, tác nhân được chỉ dẫn sử dụng `yt-dlp` cho tất cả các lượt tải xuống video và `ffmpeg` cho tất cả các chuyển đổi phương tiện. Trên hệ điều hành Windows, việc ưu tiên cú pháp PowerShell là bắt buộc để đảm bảo khả năng tương thích và hiệu quả tối ưu.
+**`terminal` (System-integrated)** is a flexible tool that allows the agent to run native shell commands, providing the ability to execute most system commands such as Python, pip, git, curl, or PowerShell. This tool is especially useful for installing packages, managing files, and serves as a reliable fallback when specialized tools fail. Usage guidance stresses always using non-interactive or auto-accept flags (e.g., `winget install --accept-package-agreements`, `choco install -y`, `pip install --quiet`) to avoid manual confirmation prompts. For multimedia-related tasks, agents are instructed to use `yt-dlp` for all video downloads and `ffmpeg` for all media conversions. On Windows, preferring PowerShell syntax is mandatory to ensure compatibility and optimal efficiency.
 
-**`search_tool` (Thông tin thời gian thực)** là công cụ thiết yếu để thực hiện tìm kiếm trên web và đóng vai trò là giao diện chính để tác nhân truy cập kiến thức bên ngoài. Để tối ưu hóa hiệu quả tìm kiếm, nếu một truy vấn ban đầu thất bại, người dùng nên đơn giản hóa nó và tập trung vào việc sử dụng các từ khóa cụ thể thay vì các câu hỏi ngôn ngữ tự nhiên dài dòng. Công cụ này được thiết kế để tự động thử nhiều nhà cung cấp tìm kiếm khác nhau theo thứ tự ưu tiên (Tavily -> DuckDuckGo -> Google) để đảm bảo kết quả toàn diện nhất. Sau khi nhận được kết quả tìm kiếm, bước tiếp theo được khuyến nghị là sử dụng công cụ `scraper` trên các URL có triển vọng nhất để trích xuất thông tin chi tiết.
+**`search_tool` (Real-time information)** is an essential tool for web searches and serves as the primary interface for the agent to access external knowledge. To optimize search effectiveness, if an initial query fails, users should simplify it and focus on specific keywords rather than long natural-language questions. This tool is designed to automatically try multiple search providers in priority order (Tavily -> DuckDuckGo -> Google) to ensure the most comprehensive results. After receiving search results, the recommended next step is to use the `scraper` tool on the most promising URLs to extract detailed information.
 
-**`scraper` (Trích xuất nội dung web)** là một công cụ chuyên biệt được thiết kế để trích xuất nội dung văn bản sạch, dễ đọc từ một URL cụ thể. Nó sử dụng các kỹ thuật phân tích cú pháp nâng cao để loại bỏ các phần tử không cần thiết như quảng cáo, menu điều hướng và các thành phần giao diện người dùng khác, chỉ giữ lại nội dung cốt lõi. Công cụ này nên được sử dụng một cách có chọn lọc cho các URL đã được xác minh và có giá trị cao được tìm thấy thông qua công cụ tìm kiếm. Để tăng cường độ tin cậy, `scraper` sẽ tự động thử lại với các tiêu đề HTTP khác nhau trong trường hợp gặp lỗi ban đầu, giúp vượt qua một số cơ chế chống bot cơ bản.
+**`scraper` (Web content extraction)** is a specialized tool for extracting clean, readable text content from a specific URL. It uses advanced parsing techniques to remove unnecessary elements like ads, navigation menus, and other UI components, keeping only the core content. This tool should be used selectively on verified, high-value URLs discovered via the search tool. To increase reliability, `scraper` will automatically retry with different HTTP headers if initial attempts fail, helping bypass some basic anti-bot measures.
 
-**`file_ops` (Thao tác tệp)** là công cụ cung cấp các chức năng cơ bản nhưng thiết yếu để tương tác với hệ thống tệp. Nó cho phép tác nhân thực hiện các thao tác như đọc nội dung của một tệp, ghi dữ liệu vào một tệp (tạo mới hoặc ghi đè) và liệt kê các tệp hoặc thư mục trong một đường dẫn cụ thể. Công cụ này hỗ trợ sử dụng đường dẫn tuyệt đối, mang lại sự linh hoạt trong việc quản lý tài nguyên trên hệ thống.
+**`file_ops` (File operations)** provides essential functions to interact with the filesystem. It enables the agent to perform operations like reading file contents, writing data to files (create or overwrite), and listing files or directories at a specified path. This tool supports absolute paths, giving flexibility in resource management on the system.
 
-Cuối cùng, **`knowledge` (Cơ sở kiến thức)** là một công cụ quan trọng, hoạt động như một cơ sở kiến thức cục bộ cho tác nhân. Mục đích chính của nó là lưu trữ và truy xuất các giải pháp thành công, các bài học kinh nghiệm hoặc thông tin chi tiết kỹ thuật đã được thu thập trong quá trình hoạt động. Việc này giúp tác nhân tiết kiệm token bằng cách tránh phải tìm kiếm lại thông tin đã biết và giải quyết các tác vụ lặp lại nhanh hơn. Công cụ này hỗ trợ ba lệnh chính: `save` để lưu một mục kiến thức mới với chủ đề và nội dung cụ thể; `search` để tìm kiếm các mục kiến thức hiện có dựa trên các từ khóa trong chủ đề; và `list` để hiển thị tất cả các chủ đề kiến thức hiện có trong cơ sở dữ liệu.
+Finally, **`knowledge` (Knowledge base)** is an important tool that serves as the agent’s local knowledge store. Its main purpose is to save and retrieve successful solutions, lessons learned, or technical insights gathered during operations. This helps the agent save tokens by avoiding repeated searches for known information and resolve repetitive tasks faster. The tool supports three main commands: `save` to store a new knowledge item with a topic and content; `search` to find existing knowledge items by keywords in the topic; and `list` to display all knowledge topics currently in the database.
 
-## 5. Cài đặt và cấu hình
+## 5. Installation and Configuration
 
-Để thiết lập và chạy Manus-C-Sen ULTIMATE, hãy làm theo các bước sau:
+To set up and run Manus-C-Sen ULTIMATE, follow these steps:
 
-### 5.1. Biến môi trường
+### 5.1. Environment Variables
 
-Để cấu hình các biến môi trường cần thiết, người dùng cần sao chép tệp `.env.example` thành `.env` và điền các khóa API tương ứng. Việc này đảm bảo rằng tác nhân có thể truy cập các dịch vụ LLM và công cụ tìm kiếm (ví dụ: Tavily) một cách chính xác.
+To configure necessary environment variables, copy the `.env.example` file to `.env` and fill in the corresponding API keys. This ensures the agent can access LLM services and search providers (e.g., Tavily) correctly.
 
-### 5.2. Cài đặt Dependencies
+### 5.2. Install Dependencies
 
-Quá trình cài đặt các gói phụ thuộc bao gồm việc sử dụng `pip` để cài đặt các thư viện Python được liệt kê trong `requirements.txt` và cài đặt trình duyệt Playwright. Các lệnh cần thực hiện là:
+Installing dependencies involves using `pip` to install the Python libraries listed in `requirements.txt` and installing the Playwright browsers. The required commands are:
 
 ```shell
 pip install -r requirements.txt
 playwright install
 ```
 
-### 5.3. Chạy tác nhân
+### 5.3. Run the Agent
 
-Sau khi hoàn tất cài đặt, tác nhân có thể được khởi chạy bằng cách thực thi tệp `main.py`:
+After installation is complete, the agent can be launched by executing `main.py`:
 
 ```shell
 python main.py
 ```
 
-Khi tác nhân khởi động thành công, người dùng sẽ thấy biểu ngữ "Manus-Củ-Sen ULTIMATE" và tác nhân sẽ sẵn sàng nhận lệnh.
+When the agent starts successfully, the user will see the "Manus-C-Sen ULTIMATE" banner and the agent will be ready to receive commands.
 
-## 6. Khắc phục sự cố
+## 6. Troubleshooting
 
-Trong quá trình sử dụng Manus-C-Sen ULTIMATE, người dùng có thể gặp một số vấn đề. Dưới đây là các câu hỏi thường gặp và cách khắc phục:
+During use of Manus-C-Sen ULTIMATE, users may encounter some issues. Below are common questions and fixes:
 
-**Q: Lỗi "NameError: name 'List' is not defined"?**
+**Q: Error "NameError: name 'List' is not defined"?**
 
-**A**: Lỗi này đã được khắc phục trong bản cập nhật mới nhất của `base_tool.py`. Người dùng nên đảm bảo rằng họ đang sử dụng phiên bản mã nguồn mới nhất.
+**A**: This issue was fixed in the latest update of `base_tool.py`. Users should ensure they are using the most recent version of the codebase.
 
-**Q: Trình duyệt không mở?**
+**Q: Browser not launching?**
 
-**A**: Để khắc phục vấn đề này, hãy đảm bảo rằng bạn đã chạy lệnh `playwright install`. Công cụ `browser-use` được thiết kế để khởi chạy trình duyệt có giao diện người dùng theo mặc định, cho phép người dùng quan sát các hành động của tác nhân.
+**A**: To resolve this, ensure you have run `playwright install`. The `browser-use` tool is designed to launch a UI-capable browser by default so users can observe the agent’s actions.
 
-**Q: Lỗi 400 Bad Request?**
+**Q: 400 Bad Request error?**
 
-**A**: Lỗi này thường liên quan đến lớp "Absolute Sanitization" (Phase 10) của tác nhân, một tính năng bảo mật chủ động. Lớp này hoạt động để bảo vệ tác nhân khỏi rò rỉ token, ngay cả với "bộ não" mới. Nếu gặp lỗi này, hãy kiểm tra lại cấu hình và đảm bảo rằng không có dữ liệu nhạy cảm nào đang được truyền đi một cách không an toàn.
+**A**: This error often relates to the agent’s "Absolute Sanitization" (Phase 10), an active security layer. This layer protects the agent from token leakage, even with the new "brain." If you encounter this error, check your configuration and ensure no sensitive data is being transmitted insecurely.
 
-## 7. Kết luận
+## 7. Conclusion
 
-Manus-C-Sen ULTIMATE là một bước tiến đáng kể trong lĩnh vực tác nhân AI tự trị, mang lại khả năng tương tác web mạnh mẽ, thực thi mã linh hoạt và cơ chế suy luận thông minh. Với kiến trúc mô-đun và bộ công cụ đa dạng, nó có thể giải quyết nhiều loại tác vụ phức tạp, từ duyệt web đến phân tích dữ liệu và quản lý kiến thức. Việc hiểu rõ các tính năng và cách cấu hình sẽ giúp bạn tận dụng tối đa sức mạnh của tác nhân này.
+Manus-C-Sen ULTIMATE is a significant step forward in autonomous AI agents, offering powerful web interaction, flexible code execution, and intelligent reasoning mechanisms. With a modular architecture and a diverse toolset, it can handle many complex tasks—from web browsing to data analysis and knowledge management. Understanding its features and configuration will help you fully leverage the agent’s power.
 
 ---
 
-_"Manus-Củ-Sen: Now with the Brain of OpenManus and the Heart of Steel."_
+*"Manus-C-Sen: Now with the Brain of OpenManus and the Heart of Steel."*
 
-## 8. Các phương pháp hay nhất khi sử dụng Manus-C-Sen ULTIMATE
+## 8. Best Practices when Using Manus-C-Sen ULTIMATE
 
-Để tối đa hóa hiệu quả và tránh các vấn đề không mong muốn khi làm việc với Manus-C-Sen ULTIMATE, hãy tuân thủ các phương pháp hay nhất sau:
+To maximize effectiveness and avoid unwanted issues when working with Manus-C-Sen ULTIMATE, adhere to the following best practices:
 
-Để tối đa hóa hiệu quả và tránh các vấn đề không mong muốn khi làm việc với Manus-C-Sen ULTIMATE, người dùng nên tuân thủ một số phương pháp hay nhất. Trước hết, cần **rõ ràng và cụ thể trong yêu cầu**, cung cấp các yêu cầu không mơ hồ để tác nhân có thể hoạt động tốt nhất. Việc **kiểm tra và xác minh kết quả** đầu ra của tác nhân là rất quan trọng, đặc biệt đối với các tác vụ quan trọng, nhằm đảm bảo tính chính xác và phù hợp với mục tiêu ban đầu.
+Users should follow several best practices to maximize effectiveness and avoid problems. First, be **clear and specific in requests**—provide unambiguous instructions so the agent can perform optimally. **Verify and validate** the agent’s outputs, especially for critical tasks, to ensure accuracy and alignment with original objectives.
 
-Khi sử dụng `search_tool`, hãy **tối ưu hóa truy vấn tìm kiếm** bằng cách tập trung vào các từ khóa chính và cụm từ ngắn gọn thay vì các câu hỏi dài, giúp công cụ tìm kiếm trả về kết quả chính xác và liên quan hơn. Tương tự, **sử dụng `scraper` một cách có chọn lọc** trên các URL đã được xác minh để tránh các vấn đề về độ tin cậy hoặc pháp lý.
+When using `search_tool`, **optimize search queries** by focusing on core keywords and short phrases rather than long questions to improve relevance. Likewise, **use `scraper` selectively** on verified URLs to avoid reliability or legal concerns.
 
-**Quản lý biến môi trường cẩn thận** là điều cần thiết; đảm bảo rằng các khóa API và thông tin nhạy cảm khác được lưu trữ an toàn trong tệp `.env` và không được đưa vào kiểm soát phiên bản. Người dùng cũng nên **theo dõi mức sử dụng và chi phí** thông qua tính năng của `llm.py` để quản lý ngân sách và tối ưu hóa việc sử dụng tài nguyên LLM. Cuối cùng, **tận dụng cơ sở kiến thức (`knowledge`)** bằng cách lưu trữ các giải pháp và thông tin hữu ích để tiết kiệm token và tăng tốc độ giải quyết các tác vụ lặp lại. Đồng thời, cần **hiểu rõ giới hạn của sandbox** khi sử dụng `python_execute` và `terminal`, vì các hoạt động mạng bên ngoài có thể bị hạn chế và một số lệnh hệ thống có thể không hoạt động như mong đợi.
+**Manage environment variables carefully**: ensure API keys and other sensitive information are stored securely in `.env` and not committed to version control. Users should also **monitor usage and costs** via `llm.py`’s features to manage budgets and optimize LLM resource use. Finally, **leverage the `knowledge` store** to save solutions and useful information to save tokens and speed up recurring tasks. Understand the sandbox limits when using `python_execute` and `terminal`, as external network operations may be restricted and some system commands might not behave as expected.
 
-## 9. Phát triển và cải tiến trong tương lai
+## 9. Future Development and Improvements
 
-Dự án Manus-C-Sen ULTIMATE không ngừng được phát triển và cải tiến. Một số hướng phát triển tiềm năng trong tương lai bao gồm:
+The Manus-C-Sen ULTIMATE project is continuously evolving. Potential future directions include:
 
-Dự án Manus-C-Sen ULTIMATE không ngừng được phát triển và cải tiến, với nhiều hướng đi tiềm năng trong tương lai. Một trong những trọng tâm chính là **tăng cường khả năng học hỏi liên tục**, thông qua việc phát triển các cơ chế cho phép tác nhân học hỏi và thích nghi tốt hơn với các tác vụ mới và môi trường thay đổi, có thể thông qua học tăng cường hoặc các kỹ thuật học máy tiên tiến khác.
+The Manus-C-Sen ULTIMATE project is under continuous development with multiple potential directions. One primary focus is **enhancing continual learning**, by developing mechanisms that allow the agent to learn and adapt better to new tasks and changing environments, possibly via reinforcement learning or advanced machine learning techniques.
 
-Bên cạnh đó, việc **mở rộng bộ công cụ** là một ưu tiên để tích hợp thêm các công cụ chuyên biệt cho các lĩnh vực cụ thể, chẳng hạn như công cụ phân tích tài chính, công cụ thiết kế đồ họa hoặc công cụ quản lý dự án, nhằm mở rộng đáng kể phạm vi ứng dụng của tác nhân. **Cải thiện khả năng tương tác người-AI** cũng là một mục tiêu quan trọng, thông qua việc phát triển giao diện người dùng trực quan hơn và các phương thức tương tác tự nhiên hơn, giúp người dùng dễ dàng hướng dẫn và cộng tác với tác nhân.
+Expanding the toolset is a priority to integrate more domain-specific tools, such as financial analysis tools, graphic design utilities, or project management tools, broadening the agent’s application scope. **Improving human-AI interaction** is also a key goal, by building more intuitive user interfaces and more natural interaction methods, making it easier for users to instruct and collaborate with the agent.
 
-Để đảm bảo sự bền vững và hiệu quả, dự án sẽ tiếp tục **tối ưu hóa hiệu suất và chi phí** bằng cách tinh chỉnh các thuật toán và cơ chế nhằm giảm thiểu mức tiêu thụ tài nguyên (token, CPU, bộ nhớ) mà vẫn duy trì hoặc cải thiện hiệu suất tổng thể. Đồng thời, **tăng cường khả năng tự phục hồi** là một hướng phát triển quan trọng, cho phép tác nhân tự động phát hiện, chẩn đoán và khắc phục các lỗi hoặc sự cố trong quá trình hoạt động, từ đó giảm thiểu sự can thiệp của con người. Cuối cùng, việc **hỗ trợ đa ngôn ngữ nâng cao** sẽ được chú trọng; mặc dù hiện tại đã hỗ trợ tiếng Việt, việc cải thiện khả năng hiểu và tạo ra nội dung chất lượng cao bằng nhiều ngôn ngữ khác sẽ mở rộng đáng kể đối tượng người dùng và tiềm năng ứng dụng của Manus-C-Sen ULTIMATE.
+To ensure sustainability and efficiency, the project will continue **optimizing performance and costs** by refining algorithms and mechanisms to reduce resource consumption (tokens, CPU, memory) while maintaining or improving overall performance. Enhancing **self-healing capabilities** is another important direction, enabling the agent to detect, diagnose, and remediate issues autonomously, reducing human intervention. Finally, **advancing multi-language support** will be emphasized; while Vietnamese is currently supported, improving understanding and high-quality generation across many languages will significantly broaden the user base and application potential for Manus-C-Sen ULTIMATE.
 
-Với những cải tiến liên tục, Manus-C-Sen ULTIMATE hứa hẹn sẽ trở thành một trợ lý AI ngày càng mạnh mẽ và linh hoạt, có khả năng giải quyết các thách thức phức tạp trong nhiều lĩnh vực khác nhau.
+With ongoing improvements, Manus-C-Sen ULTIMATE aims to become an increasingly powerful and flexible AI assistant, capable of tackling complex challenges across many domains.
