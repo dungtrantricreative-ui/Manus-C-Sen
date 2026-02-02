@@ -1,5 +1,7 @@
+# Sensitive values redacted — replace with environment variables or a secrets manager
+
 [llm]
-api_key = "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"
+api_key = "REDACTED"
 # model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
 model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
 vision_model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
@@ -9,57 +11,57 @@ base_url = "https://api.groq.com/openai/v1"
 
 [[llm.backups]]
 name = "groq_primary_backup"
-api_key = "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"
+api_key = "REDACTED"
 model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
 base_url = "https://api.groq.com/openai/v1"
 supports_tools = true
 
 [[llm.backups]]
 name = "groq_new_quota"
-api_key = "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"
+api_key = "REDACTED"
 model_name = "meta-llama/llama-4-scout-17b-16e-instruct"
 base_url = "https://api.groq.com/openai/v1"
 supports_tools = true
 
 [[llm.backups]]
 name = "sambanova_old"
-api_key = "74a9bc78-8f70-495d-ac96-22b3589837b4"
+api_key = "REDACTED"
 model_name = "Llama-4-Maverick-17B-128E-Instruct"
 base_url = "https://api.sambanova.ai/v1"
 supports_tools = true
 
 [[llm.backups]]
 name = "sambanova_new"
-api_key = "283fe5e6-bc89-4daa-aa08-272258b8d5b3"
+api_key = "REDACTED"
 model_name = "Llama-4-Maverick-17B-128E-Instruct"
 base_url = "https://api.sambanova.ai/v1"
 supports_tools = true
 
 [[llm.backups]]
 name = "sambanova_secondary"
-api_key = "a670faaf-cb47-46c8-a45b-29ef7467143e"
+api_key = "REDACTED"
 model_name = "Llama-4-Maverick-17B-128E-Instruct"
 base_url = "https://api.sambanova.ai/v1"
 supports_tools = true
 
 [[llm.backups]]
 name = "cerebras_old"
-api_key = "csk-vdmwee9e6kpmpyxdcfkvrxrcyhekh5w6vk39nwfc9wxmpkhk"
+api_key = "REDACTED"
 model_name = "gpt-oss-120b"
 base_url = "https://api.cerebras.ai/v1"
 supports_tools = true
 
 [[llm.backups]]
 name = "cerebras_new"
-api_key = "csk-5jn2kxh2nnrp2x46xfwetnkttrcetcfrxp29mvrv5d9dxtjf"
+api_key = "REDACTED"
 model_name = "gpt-oss-120b"
 base_url = "https://api.cerebras.ai/v1"
 supports_tools = true
 
 [tools]
-tavily_api_key = "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"
-google_api_key = "AIzaSyCSjjQbHnkNAxyb2E2-5qkOOTYx8-Q5JvM"
-google_search_engine_id = "87af9402fa9e24404"
+tavily_api_key = "REDACTED"
+google_api_key = "REDACTED"
+google_search_engine_id = "REDACTED"
 enabled = ["search", "memory", "file_ops", "calculator", "scraper", "python_repl", "ask_human", "terminal", "editor", "planning", "knowledge", "python_execute", "terminate"]
 
 [agent]
