@@ -367,7 +367,7 @@ class BrowserUseTool(BaseTool, Generic[Context]):
                     """
                     
                     if self.llm:
-                        distilled = await self.llm.ask(prompt)
+                        distilled = await self.llm.quick_ask([{"role": "user", "content": prompt}])
                         return ToolResult(output=f"🔍 Distilled Extraction for '{goal}':\n{distilled}")
                     else:
                         if len(content) > 4000:

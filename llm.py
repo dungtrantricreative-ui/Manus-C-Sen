@@ -112,12 +112,15 @@ class ResponseCache:
     
     def _make_key(self, messages: List[dict], tools: List[dict] = None) -> str:
         """Create a cache key from messages and tools."""
-        # Use last 3 messages for key (balance between precision and reuse)
-        recent = messages[-3:] if len(messages) > 3 else messages
-        key_parts = [str(m.get("content", ""))[:100] for m in recent]
-        if tools:
-            key_parts.append(str(len(tools)))  # Just tool count for key
-        return hash(tuple(key_parts))
+        # PHASE 12: Precision caching - hash everything
+        import hashlib
+        
+        # Normalize messages for hashing
+        msg_str = json.dumps(messages, sort_keys=True)
+        tool_str = json.dumps(tools, sort_keys=True) if tools else ""
+        
+        combined = f"{msg_str}|{tool_str}"
+        return hashlib.sha256(combined.encode()).hexdigest()
     
     def get(self, messages: List[dict], tools: List[dict] = None) -> Optional[Any]:
         """Get cached response if available."""
@@ -229,9 +232,13 @@ class LLM:
                 messages=msg_dicts,
                 tools=tools,
                 tool_choice=tool_choice,
-                stream=True
+                stream=True,
+                stream_options={"include_usage": True}
             )
             async for chunk in response:
+                # PHASE 12: Capture usage from stream
+                if hasattr(chunk, 'usage') and chunk.usage:
+                    self._extract_usage(chunk, self.primary_name)
                 yield chunk
             return
         except Exception as e:
@@ -248,9 +255,12 @@ class LLM:
                     messages=msg_dicts_backup,
                     tools=tools,
                     tool_choice=tool_choice,
-                    stream=True
+                    stream=True,
+                    stream_options={"include_usage": True} # Ensure usage is included
                 )
                 async for chunk in response:
+                    if hasattr(chunk, 'usage') and chunk.usage:
+                        self._extract_usage(chunk, b['name'])
                     yield chunk
                 return
             except Exception as be:

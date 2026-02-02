@@ -21,6 +21,8 @@ class LLMSettings(BaseModel):
 
 class ToolSettings(BaseModel):
     tavily_api_key: str = ""
+    google_api_key: str = ""
+    google_search_engine_id: str = ""
     enabled: List[str] = ["search", "memory", "file_ops", "calculator", "scraper", "python_repl", "browser", "ask_human", "terminal"]
 
 class AgentSettings(BaseModel):
@@ -76,6 +78,8 @@ class LegacySettings:
         self.BACKUPS = s.llm.backups
         
         self.TAVILY_API_KEY = s.tools.tavily_api_key
+        self.GOOGLE_API_KEY = s.tools.google_api_key
+        self.GOOGLE_SEARCH_ENGINE_ID = s.tools.google_search_engine_id
         self.MAX_STEPS = s.agent.max_steps
         
         # New settings access (keeping flat for old code, adding nested for new code)

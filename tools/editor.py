@@ -10,7 +10,8 @@ class EditorTool(BaseTool):
     name: str = "editor"
     description: str = """Custom editing tool for viewing, creating and editing files.
     * Use 'view' to see file content with line numbers.
-    * Use 'create' to make a new file.
+    * Use 'create' to make a new file (optionally with overwrite=True).
+    * Use 'write_all' to completely overwrite a file with new content.
     * Use 'str_replace' to replace a UNIQUE string with new text.
     * Use 'insert' to insert text after a specific line.
     * Use 'undo' to revert the last edit.
@@ -18,9 +19,9 @@ class EditorTool(BaseTool):
     instructions: str = """
 > [!CAUTION]
 > **OUTPUT QUALITY GUARD**:
-> 1. **CLEAN LYRICS**: Before saving lyrics, STRIP all guitar chords (e.g., [F], [C], [Am], [G7]). 
-> 2. **NO CHORDS ALLOWED**: Leave only the words. If you see brackets `[]` in lyrics, REMOVE them.
-> 3. **FORMATTING**: Ensure proper indentation for code and clear spacing for text.
+> 1. **STRATEGY**: Prefer `write_all` for large content updates or SEO descriptions to avoid "Line out of range" errors.
+> 2. **CLEAN LYRICS**: Before saving lyrics, STRIP all guitar chords (e.g., [F], [C], [Am], [G7]). 
+> 3. **NO CHORDS ALLOWED**: Leave only the words. If you see brackets `[]` in lyrics, REMOVE them.
 """
     
     parameters: dict = {
@@ -28,7 +29,7 @@ class EditorTool(BaseTool):
         "properties": {
             "command": {
                 "type": "string",
-                "enum": ["view", "create", "str_replace", "insert", "undo"],
+                "enum": ["view", "create", "write_all", "str_replace", "insert", "undo"],
                 "description": "The command to run."
             },
             "path": {
@@ -37,7 +38,11 @@ class EditorTool(BaseTool):
             },
             "file_text": {
                 "type": "string",
-                "description": "Content for 'create' command."
+                "description": "Content for 'create' or 'write_all' commands."
+            },
+            "overwrite": {
+                "type": "boolean",
+                "description": "If true, 'create' will overwrite existing files."
             },
             "old_str": {
                 "type": "string",
@@ -70,7 +75,9 @@ class EditorTool(BaseTool):
         if command == "view":
             return await self._view(path, kwargs.get("view_range"))
         elif command == "create":
-            return await self._create(path, kwargs.get("file_text", ""))
+            return await self._create(path, kwargs.get("file_text", ""), kwargs.get("overwrite", False))
+        elif command == "write_all":
+            return await self._write_all(path, kwargs.get("file_text", ""))
         elif command == "str_replace":
             return await self._str_replace(path, kwargs.get("old_str", ""), kwargs.get("new_str", ""))
         elif command == "insert":
@@ -114,17 +121,35 @@ class EditorTool(BaseTool):
         except Exception as e:
             return f"Error reading file: {str(e)}"
 
-    async def _create(self, path: str, content: str) -> str:
-        if os.path.exists(path):
-            return f"Error: File already exists at {path}. Use 'str_replace' to edit."
+    async def _create(self, path: str, content: str, overwrite: bool = False) -> str:
+        if os.path.exists(path) and not overwrite:
+            return f"Error: File already exists at {path}. Set 'overwrite=True' or use 'write_all' or 'str_replace'."
         
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, "w", encoding="utf-8") as f:
                 f.write(content)
-            return f"Success: File created at {path}"
+            return f"Success: File {'overwritten' if overwrite else 'created'} at {path}"
         except Exception as e:
             return f"Error creating file: {str(e)}"
+
+    async def _write_all(self, path: str, content: str) -> str:
+        # Save to history if file exists
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    old_content = f.read()
+                if path not in self._history: self._history[path] = []
+                self._history[path].append(old_content)
+            except: pass
+
+        try:
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(content)
+            return f"Success: File completely updated at {path}"
+        except Exception as e:
+            return f"Error writing file: {str(e)}"
 
     async def _str_replace(self, path: str, old_str: str, new_str: str) -> str:
         if not os.path.exists(path): return f"Error: File not found: {path}"
@@ -142,7 +167,7 @@ class EditorTool(BaseTool):
         if path not in self._history: self._history[path] = []
         self._history[path].append(content)
         
-        new_content = content.replace(old_str, new_content := new_str)
+        new_content = content.replace(old_str, new_str)
         with open(path, "w", encoding="utf-8") as f:
             f.write(new_content)
         

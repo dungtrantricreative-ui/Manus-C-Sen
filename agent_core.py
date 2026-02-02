@@ -91,6 +91,9 @@ class BrowserContextHelper:
 
 
 
+from event_bus import EventBus
+from tools.planning import PlanningTool
+
 class ToolCallAgent(BaseModel):
     """Base agent class for handling tool/function calls with structured memory and state management."""
 
@@ -102,6 +105,7 @@ class ToolCallAgent(BaseModel):
 
     llm: LLM = Field(default_factory=LLM)
     memory: Memory = Field(default_factory=Memory)
+    event_bus: EventBus = Field(default_factory=EventBus)
     state: AgentState = AgentState.IDLE
 
     available_tools: ToolCollection = Field(default_factory=lambda: ToolCollection(Terminate()))
@@ -123,9 +127,19 @@ class ToolCallAgent(BaseModel):
         if user_input:
             self.memory.add_message(Message.user_message(user_input))
             self._is_complex_task = is_complex_task(user_input)
+            self.event_bus.emit("observation", "UserRequest", user_input)
 
     async def think(self) -> bool:
         """Process state and decide next action. Returns True if acting is needed."""
+        # PHASE 12 & Brain Transplant: Check if we need planning first
+        if self._is_complex_task and self.current_step == 1:
+             # Inject strategy: create a plan if none exists
+             has_plan = any(t.name == "planning" for t in self.available_tools)
+             if has_plan:
+                 # Check if planning message already exists
+                 planning_msg = "\n\n[PLANNING] This is a complex task. Use the `planning` tool to create a roadmap FIRST."
+                 self.memory.add_message(Message.system_message(planning_msg))
+
         reasoning_prompt = get_reasoning_prompt(self._is_complex_task)
         effective_prompt = reasoning_prompt if self._is_complex_task else self.next_step_prompt
         
@@ -136,17 +150,16 @@ class ToolCallAgent(BaseModel):
             self._last_tool_result = ""
 
         if effective_prompt:
-             # TRIGGER PHASE 12: Context Pruning
+             # Summarize old context to save tokens
              await self.memory.summarize(self.llm)
              
-             # Create a transient message list for the LLM call instead of permanently growing memory with same prompts
              messages = self.memory.to_dict_list()
              messages.append({"role": "user", "content": effective_prompt})
         else:
              messages = self.memory.to_dict_list()
 
         full_content = ""
-        tool_calls_reconstructed = {} # Dict to hold reconstructed tool calls
+        tool_calls_reconstructed = {} 
         
         try:
              self._console.print("\n[dim]* Thinking:[/dim]", end=" ")
@@ -156,22 +169,11 @@ class ToolCallAgent(BaseModel):
                      tools=self.available_tools.to_params(),
                      tool_choice=self.tool_choices,
                  ):
-                     if not chunk.choices:
-                         continue
-                     
+                     if not chunk.choices: continue
                      delta = chunk.choices[0].delta
-                     
-                     # 1. Handle Content (Reasoning)
                      if delta.content:
-                         chunk_text = delta.content
-                         # Filter out repetitive thinking headers if they appear in stream
-                         if full_content == "" and ("* Thinking:" in chunk_text or "Thinking:" in chunk_text):
-                             chunk_text = chunk_text.replace("* Thinking:", "").replace("Thinking:", "").strip()
-                         
-                         full_content += chunk_text
+                         full_content += delta.content
                          live.update(Text(full_content, style="dim"))
-                     
-                     # 2. Handle Tool Calls
                      if delta.tool_calls:
                          for tc_delta in delta.tool_calls:
                              if tc_delta.index not in tool_calls_reconstructed:
@@ -180,25 +182,23 @@ class ToolCallAgent(BaseModel):
                                      "name": tc_delta.function.name if tc_delta.function else "",
                                      "arguments": ""
                                  }
-                             
                              if tc_delta.function and tc_delta.function.arguments:
                                  tool_calls_reconstructed[tc_delta.index]["arguments"] += tc_delta.function.arguments
-
         except Exception as e:
-            logger.success(f"❌ [bold red]LLM failure:[/bold red] {str(e)[:100]}")
+            logger.error(f"LLM failure: {e}")
             return False
 
-        # Parse reconstructed tool calls using the schema
         tool_calls = []
         for tc_data in tool_calls_reconstructed.values():
-            if tc_data["name"]: # Ensure name is present
+            if tc_data["name"]:
                 tool_calls.append(ToolCall(
                     id=tc_data["id"],
                     type="function",
                     function=Function(name=tc_data["name"], arguments=tc_data["arguments"])
                 ))
+                # Emit ACTION event
+                self.event_bus.emit("action", tc_data["name"], tc_data["arguments"])
 
-        # Add assistant message to memory
         assistant_msg = Message.assistant_message(content=full_content, tool_calls=tool_calls if tool_calls else None)
         self.memory.add_message(assistant_msg)
 
@@ -215,25 +215,26 @@ class ToolCallAgent(BaseModel):
         if not last_msg.tool_calls:
             return "No actions to take."
 
-        results = []
+        tasks = []
         for tc in last_msg.tool_calls:
-            result = await self.execute_tool(tc)
-            
-            # UI: Results (Snippet)
+            tasks.append(self.execute_tool(tc))
+        
+        tool_results = await asyncio.gather(*tasks)
+        
+        results = []
+        for tc, result in zip(last_msg.tool_calls, tool_results):
             output_str = str(result.output if hasattr(result, "output") else result)
+            
+            # Emit OBSERVATION event
+            self.event_bus.emit("observation", tc.function.name, output_str)
+            
             if output_str and len(output_str) > 2:
                 snippet = output_str[:120].replace("\n", " ").strip() + ("..." if len(output_str) > 120 else "")
-                self._console.print(f" [green]> Result:[/green] [dim]{snippet}[/dim]")
+                self._console.print(f" [green]> Result ({tc.function.name}):[/green] [dim]{snippet}[/dim]")
             else:
-                self._console.print(f" [green]> Result:[/green] [dim]Done.[/dim]")
+                self._console.print(f" [green]> Result ({tc.function.name}):[/green] [dim]Done.[/dim]")
 
-            # Add tool result to memory
-            tool_msg = Message.tool_message(
-                content=output_str,
-                name=tc.function.name,
-                tool_call_id=tc.id
-            )
-            # Inherit image if result has it
+            tool_msg = Message.tool_message(content=output_str, name=tc.function.name, tool_call_id=tc.id)
             if isinstance(result, ToolResult) and result.base64_image:
                  tool_msg.base64_image = result.base64_image
             
@@ -249,7 +250,6 @@ class ToolCallAgent(BaseModel):
         except:
             return f"Error: Invalid arguments for {name}"
 
-        # Terminate check (preserved from original logic)
         if name.lower() == "terminate":
             self.state = AgentState.FINISHED
             res = await self.available_tools.execute(name=name, tool_input=args)
@@ -268,15 +268,15 @@ class ToolCallAgent(BaseModel):
             self.current_step += 1
             await self.step()
 
-class ManusCompetition(ToolCallAgent):
-    name: str = "Manus-Cu-Sen"
+class ManusPrime(ToolCallAgent):
+    name: str = "Manus Prime"
     
     available_tools: ToolCollection = Field(
         default_factory=lambda: ToolCollection(*load_tools(settings.tools.enabled if hasattr(settings, "tools") else None))
     )
 
     @model_validator(mode="after")
-    def inject_expert_instructions(self) -> "ManusCompetition":
+    def inject_expert_instructions(self) -> "ManusPrime":
         instructions = []
         for tool in self.available_tools:
             if hasattr(tool, "instructions") and tool.instructions:

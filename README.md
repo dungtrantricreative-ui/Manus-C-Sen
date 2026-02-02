@@ -1,22 +1,19 @@
-# Hướng dẫn sử dụng Manus-C-Sen ULTIMATE (Brain Transplant Edition)
+# Hướng dẫn sử dụng Manus Prime (Brain Transplant Edition)
 
 ## 1. Giới thiệu
 
-Manus-C-Sen ULTIMATE là một tác nhân AI tự trị tiên tiến, được thiết kế để thực thi các tác vụ với độ chính xác cao và hiệu quả tối ưu. Dự án này đại diện cho một bước tiến đáng kể trong lĩnh vực AI tự trị, được biết đến với tên gọi "Brain Transplant" (Phase 11). Phiên bản này tích hợp sâu rộng logic cốt lõi từ dự án OpenManus, mang lại một nền tảng vững chắc cho các hoạt động phức tạp. Đặc biệt, nó được tăng cường với các biện pháp bảo mật môi trường nghiêm ngặt, một trình duyệt hỗ trợ thị giác tiên tiến, cơ chế nhắc nhở động (dynamic prompting) có khả năng thích ứng theo ngữ cảnh, và một hệ thống thực thi công cụ mạnh mẽ. Sự kết hợp này cho phép Manus-C-Sen ULTIMATE không chỉ hiểu và phản ứng với môi trường số một cách thông minh mà còn thực hiện các tác vụ đa dạng từ duyệt web, phân tích dữ liệu đến quản lý thông tin một cách tự động và đáng tin cậy.
+Manus Prime là một tác nhân AI tự trị tiên tiên nhất, được thiết kế để thực thi các tác vụ với độ chính xác cao và hiệu quả tối ưu. Dự án này đại diện cho một bước tiến tới "Siêu trí tuệ" (Phase 13). Phiên bản này tích hợp sâu rộng logic cốt lõi từ dự án OpenManus (Event system), Plandex (Planning ledger), và OpenHands (Host execution), mang lại một nền tảng vững chắc cho các hoạt động phức tạp.
 
-Cách thức hoạt động của Manus-C-Sen ULTIMATE dựa trên một vòng lặp phản hồi liên tục, nơi tác nhân liên tục quan sát môi trường, suy nghĩ về hành động tiếp theo và thực thi các công cụ phù hợp. Với "đôi mắt" là trình duyệt hỗ trợ thị giác, tác nhân có thể thu thập thông tin trực quan từ các trang web, hiểu được cấu trúc và các phần tử tương tác. "Bộ não" của nó, được hỗ trợ bởi các mô hình ngôn ngữ lớn (LLM) và cơ chế nhắc nhở động, cho phép nó lập kế hoạch, suy luận và đưa ra quyết định một cách linh hoạt. Khi cần thực hiện một hành động, tác nhân sẽ chọn công cụ phù hợp từ bộ công cụ đa dạng của mình, từ việc thực thi mã Python đến chạy các lệnh shell hoặc tìm kiếm thông tin trên web. Mỗi hành động được thực hiện sẽ tạo ra một phản hồi, được tác nhân sử dụng để cập nhật trạng thái và điều chỉnh kế hoạch tiếp theo, tạo thành một chu trình tự cải tiến liên tục.
+Cách thức hoạt động của Manus Prime dựa trên một vòng lặp phản hồi liên tục, nơi tác nhân liên tục quan sát môi trường thông qua `browser-use`, lập kế hoạch thông qua `planning` tool và thực thi trực tiếp trên hệ thống (Host Access).
 
 ## 2. Các tính năng nổi bật
 
-Manus-C-Sen ULTIMATE được trang bị một loạt các tính năng tiên tiến, giúp nó trở thành một công cụ mạnh mẽ cho các tác vụ tự động hóa:
+Manus Prime được trang bị một loạt các tính năng tiên tiến:
 
-Manus-C-Sen ULTIMATE được trang bị một loạt các tính năng tiên tiến, giúp nó trở thành một công cụ mạnh mẽ cho các tác vụ tự động hóa. Đầu tiên, **Trình duyệt hỗ trợ thị giác (`browser-use`)** cho phép tác nhân "nhìn" trang web thông qua ảnh chụp màn hình, phân tích các phần tử tương tác một cách trực quan và điều hướng các ứng dụng trang đơn (SPA) phức tạp như YouTube, Gmail hoặc các bảng điều khiển chứng khoán một cách dễ dàng, loại bỏ việc phải đoán các bộ chọn CSS một cách mù quáng.
-
-Thứ hai, tính năng **Tiêm ngữ cảnh ("The Eyes")** đảm bảo rằng trước mỗi quyết định, tác nhân sẽ tiêm trạng thái trình duyệt hiện tại (URL, Tiêu đề, Ảnh chụp màn hình) trực tiếp vào quá trình suy nghĩ của nó. Điều này giúp tác nhân không bao giờ bị "lạc" hoặc quên tab nào đang mở. Cùng với đó, **Nhắc nhở động ("The Brain")** cho phép hệ thống nhắc nhở thích ứng theo thời gian thực. "Chế độ trình duyệt" được kích hoạt khi duyệt web, tập trung vào điều hướng trực quan, trong khi "Chế độ lập trình viên" được kích hoạt khi viết mã, tập trung vào cú pháp và logic.
-
-Ngoài ra, tác nhân còn có khả năng **Thực thi Python trong Sandbox (`python_execute`)**. Công cụ `PythonTool` mới này cho phép tác nhân thực thi mã Python một cách an toàn cho các phép tính, phân tích dữ liệu và xác minh logic. Một **Bộ công cụ chính (`Master Tool Suite`)** toàn diện bao gồm các công cụ mạnh mẽ như `browser_use` để tương tác web, `python_execute` để thực thi mã Python, `terminal` để thực thi lệnh shell, `search_tool` để tìm kiếm thông tin thời gian thực và `scraper` để trích xuất nội dung từ URL.
-
-Để đảm bảo tính liên tục và hiệu quả, Manus-C-Sen ULTIMATE tích hợp **Cơ chế dự phòng LLM**, cho phép tác nhân chuyển đổi linh hoạt giữa các nhà cung cấp LLM khác nhau (ví dụ: Sambanova, Groq, Cerebras) trong trường hợp nhà cung cấp chính gặp sự cố hoặc giới hạn tốc độ. Tính năng **Tối ưu hóa chi phí** được tích hợp thông qua cơ chế theo dõi mức sử dụng token và chi phí, cùng với bộ nhớ đệm phản hồi để giảm thiểu chi phí khi thực hiện các truy vấn lặp lại. Cuối cùng, **Bảo mật và làm cứng môi trường** được đảm bảo bởi `schema.py`, đóng vai trò là "Người bảo vệ", xác thực dữ liệu và làm sạch từng byte để bảo vệ tác nhân khỏi rò rỉ token, ngay cả với "bộ não" mới.
+*   **Lõi sự kiện (Event-Driven):** Thừa hưởng từ kiến trúc OpenHands, mọi hành động và quan sát được ghi lại vào EventBus.
+*   **Siêu kế hoạch (Strategic Planning):** Tích hợp logic ledger của Plandex để quản lý các task dài hạn.
+*   **Thực thi Host Native:** Loại bỏ sandbox, cho phép AI can thiệp trực tiếp vào PowerShell và Python trên máy thật.
+*   **Trình duyệt thị giác:** Sử dụng `browser-use` với bản đồ tương tác INDEX.
 
 ## 3. Kiến trúc nội bộ
 

@@ -47,15 +47,33 @@ class TerminalTool(BaseTool):
         "run_python": "python script.py",
     }
 
+    # State persistence
+    _current_cwd: str = os.getcwd()
+
     async def execute(self, command: str, working_dir: str = None, timeout: int = 120) -> str:
         try:
             command = command.strip()
             
+            # Handle manual CD commands to persist state
+            if command.lower().startswith("cd ") or command.lower() == "cd":
+                new_dir = command[3:].strip() if len(command) > 2 else os.path.expanduser("~")
+                if not new_dir: new_dir = os.getcwd() # Handle just 'cd'
+                try:
+                    # Resolve path relative to current state
+                    target_path = os.path.abspath(os.path.join(self._current_cwd, new_dir))
+                    if os.path.isdir(target_path):
+                        self._current_cwd = target_path
+                        return f"CWD changed to: {self._current_cwd}"
+                    else:
+                        return f"Error: Directory not found: {target_path}"
+                except Exception as e:
+                    return f"Error changing directory: {e}"
+
             # Auto-ensure outputs directory
             if "outputs/" in command or "outputs\\" in command:
                 os.makedirs("outputs", exist_ok=True)
             
-            cwd = working_dir or os.getcwd()
+            cwd = working_dir or self._current_cwd
             
             if platform.system() == "Windows":
                 # Robust PowerShell execution: Base64 encoding prevents quote/escaping issues

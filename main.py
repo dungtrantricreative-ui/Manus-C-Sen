@@ -24,14 +24,14 @@ import asyncio
 from rich.console import Console
 from rich.panel import Panel
 
-from agent_core import ManusCompetition
+from agent_core import ManusPrime
 from schema import Memory, Message, AgentState
 
 async def main():
     console = Console()
     console.print(Panel.fit(
-        "[bold green]Manus-Cu-Sen ULTIMATE[/bold green]\n[dim](Brain Transplant Edition)[/dim]\n\nPowered by: [cyan]Browser-Use[/cyan], [magenta]Vision Context[/magenta], & [yellow]Dynamic Prompts[/yellow]",
-        border_style="green",
+        "[bold cyan]Manus Prime[/bold cyan]\n[dim](Brain Transplant Edition - Phase 13)[/dim]\n\nPowered by: [yellow]Plandex[/yellow], [blue]OpenHands[/blue], & [green]browser-use[/green]",
+        border_style="cyan",
         padding=(1, 2)
     ))
 
@@ -39,9 +39,9 @@ async def main():
     memory = Memory()
 
     # Initialize Agent (Now handles its own Memory and System Prompt internally)
-    agent = ManusCompetition()
+    agent = ManusPrime()
     
-    print("\nReady! type 'exit' to quit.\n")
+    print("\nManus Prime is online! type 'exit' to quit.\n")
 
     try:
         while True:
@@ -62,7 +62,7 @@ async def main():
                 # Check for final answer
                 if agent.final_answer:
                      console.print("\n" + "─"*50)
-                     console.print(f"[bold green]Manus-Cu-Sen:[/bold green]\n{agent.final_answer}")
+                     console.print(f"[bold cyan]Manus Prime:[/bold cyan]\n{agent.final_answer}")
                      console.print("─"*50)
                 
                 print("\n" + "-"*30)

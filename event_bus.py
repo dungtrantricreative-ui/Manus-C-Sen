@@ -1,36 +1,34 @@
-from typing import Callable, Awaitable, List
-import asyncio
+from datetime import datetime
+from typing import List, Dict, Any, Optional
+from pydantic import BaseModel, Field
+
+class Event(BaseModel):
+    id: str = Field(default_factory=lambda: datetime.now().strftime("%Y%m%d%H%M%S%f"))
+    timestamp: datetime = Field(default_factory=datetime.now)
+    type: str # 'action' or 'observation'
+    name: str
+    content: Any
+    meta: Dict[str, Any] = Field(default_factory=dict)
 
 class EventBus:
-    _instance = None
-    _listeners: List[Callable[[dict], Awaitable[None]]] = []
+    """A central hub for agent events (OpenHands style)."""
+    
+    def __init__(self):
+        self.events: List[Event] = []
+        self._listeners = []
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super(EventBus, cls).__new__(cls)
-            cls._listeners = []
-        return cls._instance
+    def emit(self, event_type: str, name: str, content: Any, meta: Optional[Dict] = None):
+        event = Event(type=event_type, name=name, content=content, meta=meta or {})
+        self.events.append(event)
+        for listener in self._listeners:
+            listener(event)
+        return event
 
-    @classmethod
-    def subscribe(cls, listener: Callable[[dict], Awaitable[None]]):
-        cls._listeners.append(listener)
+    def get_actions(self) -> List[Event]:
+        return [e for e in self.events if e.type == 'action']
 
-    @classmethod
-    async def publish(cls, event_type: str, content: str = None, **kwargs):
-        """
-        Publish an event to all subscribers.
-        common types: 'status' (thinking), 'terminal' (commands), 'browser' (screenshots)
-        """
-        payload = {
-            "type": event_type,
-            "content": content,
-            **kwargs
-        }
-        for listener in cls._listeners:
-            try:
-                await listener(payload)
-            except Exception as e:
-                print(f"Error in event listener: {e}")
+    def get_observations(self) -> List[Event]:
+        return [e for e in self.events if e.type == 'observation']
 
-# Global instance
-bus = EventBus()
+    def clear(self):
+        self.events = []

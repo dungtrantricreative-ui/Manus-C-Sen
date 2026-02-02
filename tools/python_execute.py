@@ -4,13 +4,18 @@ from io import StringIO
 from typing import Dict, Any
 from base_tool import BaseTool
 
+import sys
+from io import StringIO
+from typing import Dict, Any
+from base_tool import BaseTool
+
 class PythonExecute(BaseTool):
     """
-    A powerful tool for executing Python code. 
-    Ideal for data analysis, math, and string manipulation.
+    A powerful tool for executing Python code directly on the host machine.
+    Variables are PERSISTENT between calls in the same session.
     """
     name: str = "python_execute"
-    description: str = "Executes Python code. Use print() to see results. Variables are not persistent between calls."
+    description: str = "Executes Python code on the host machine. Variables PERSIST between calls."
     parameters: dict = {
         "type": "object",
         "properties": {
@@ -23,48 +28,27 @@ class PythonExecute(BaseTool):
     }
     
     instructions: str = """
-1. **PRINT EVERYTHING**: Only printed output is captured. Do not just return values.
-2. **SANDBOXED**: Imports are allowed, but external networking might be restricted.
-3. **UTILITY**: Use this for complex calculations or data processing that is hard in natural language.
+1. **HOST ACCESS**: This runs directly on the local machine. You have access to the file system, network, and all installed libraries.
+2. **PERSISTENCE**: Global variables defined in one call are available in the next.
+3. **PRINT RESULTS**: Use print() to see output.
 """
 
-    def _run_code(self, code: str, result_dict: dict, safe_globals: dict) -> None:
+    _locals: Dict[str, Any] = {}
+
+    async def execute(self, code: str) -> str:
         original_stdout = sys.stdout
+        original_stderr = sys.stderr
+        output_buffer = StringIO()
+        sys.stdout = output_buffer
+        sys.stderr = output_buffer
+        
         try:
-            output_buffer = StringIO()
-            sys.stdout = output_buffer
-            exec(code, safe_globals, safe_globals)
-            result_dict["observation"] = output_buffer.getvalue()
-            result_dict["success"] = True
+            # Execute in the perspective of the project root
+            exec(code, self._locals, self._locals)
+            obs = output_buffer.getvalue()
+            return obs if obs else "Code executed successfully (no output)."
         except Exception as e:
-            result_dict["observation"] = str(e)
-            result_dict["success"] = False
+            return f"Error: {str(e)}"
         finally:
             sys.stdout = original_stdout
-
-    async def execute(self, code: str, timeout: int = 10) -> str:
-        # Use multiprocessing for isolation and timeout
-        with multiprocessing.Manager() as manager:
-            result = manager.dict({"observation": "", "success": False})
-            
-            # Setup builtins
-            if isinstance(__builtins__, dict):
-                safe_globals = {"__builtins__": __builtins__}
-            else:
-                safe_globals = {"__builtins__": __builtins__.__dict__.copy()}
-            
-            proc = multiprocessing.Process(
-                target=self._run_code, args=(code, result, safe_globals)
-            )
-            proc.start()
-            proc.join(timeout)
-
-            if proc.is_alive():
-                proc.terminate()
-                proc.join(1)
-                return f"Error: Execution timeout after {timeout} seconds"
-            
-            obs = result.get("observation", "")
-            if not result.get("success", False):
-                return f"Error: {obs}"
-            return obs if obs else "Code executed successfully (no output)."
+            sys.stderr = original_stderr
